@@ -37,7 +37,7 @@ else
     fi
 
     # Use a new  fuzzerName
-    _fuzzerName="MF${_JOB}"
+    _fuzzerName=$2
     echo ${_fuzzerName} > $FUZZ_NAME_PATH/$_JOB.name
 
     echo "DEBUG: _fuzzerName=$_fuzzerName _oldFuzzerName=$_oldFuzzerName"
@@ -53,7 +53,7 @@ else
     else
       echo "DEBUG: New task $_JOB-out" 
       # New task
-      env AFL_PATH="$TLB_AFL_PATH_FUZZ" AFL_NO_AFFINITY=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 ${TLB_AFL_PATH_FUZZ}/afl-fuzz -i $1/$corpus_path -o $1/fuzz_out -M  $_fuzzerName $1/$run
+      env AFL_PATH="$TLB_AFL_PATH_FUZZ" AFL_NO_AFFINITY=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 ${TLB_AFL_PATH_FUZZ}/afl-fuzz -i $1/$corpus_path -o $1/fuzz_out -M $_fuzzerName $1/$run
 
     fi
 

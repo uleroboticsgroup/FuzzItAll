@@ -6,7 +6,6 @@
 #SBATCH --mail-type=ALL 
 #SBATCH --output=./log/SF-crashtest.%A_%a.out 
 #SBATCH --error=./log/SF-crashtest.%A_%a.err 
-#SBATCH --partition=haswell 
 #SBATCH --qos=normal 
 #SBATCH --time=3-23:55:00
 

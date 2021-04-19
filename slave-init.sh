@@ -13,7 +13,6 @@ echo "DEBUG: _fuzzerName $_fuzzerName"
 # Check for master fuzzer existance
 if [ -f "$FUZZ_NAME_PATH/$_JOB.name" ]; then
   echo "DEBUG: New task $_out" 
-  mkdir -p $_out
   # New slave task
   env AFL_PATH="$TLB_AFL_PATH_FUZZ" AFL_NO_AFFINITY=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 ${TLB_AFL_PATH_FUZZ}/afl-fuzz -i $1/$corpus_path -o $1/fuzz_out -S  $_fuzzerName $1/$run
 
