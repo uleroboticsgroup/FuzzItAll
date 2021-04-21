@@ -1,0 +1,119 @@
+<body style="background-color: black; color: white">
+<div id="header" style="margin-top: 4%;">
+<p style="font-size: 4em; width: 100%; text-align: center; font-weight: bold;">F̶̨̨̝̪̞̟́̓̾̇͆̽̕̕U̷̡̡̱̯̥̭̖̮̻̿͆̿͑͆̎Z̷̧͎̗͊͋͌̽͐͗̃̅̐̋̂̑͆́͝Z̷̡̡̢̬̘̺̟̭̞̼̖̗͋̉͜ ̴̞͕̬̙͆͊̋̌̾̉͐̆̚̕I̸̡̢̨̢͉͚͇͔̪̖̹̗̰̗͒̈́̈́͘͝Ţ̴̟̰̭͚͎̠̜͕̾̈̽̏̑͒͊̂̊̈̒̒́͝ ̴̛̛̳͕͓̫̙̫́̉́̿͐̄́̒A̵̦̺̜̤̬̭͇̾̅́̅͂̃͐̓̀̿͘L̷̻̭͚͙̩̓̉̇̄́̔̋̄͋͂̀͛͝͠͠L̵̢̙̙͇͚̫̭̪̯̝̖̘͍̻̂͘</p>
+</div>
+
+<div id="content" style="text-align: center; width:100%; flex: auto; flex-wrap: wrap; margin-top: 20%; flex-direction: column;">
+    <input type="text" id="username" placeholder="Username" style="font-size: 1em;">
+    <br>
+    <input type="text" id="password" placeholder="Password"style="font-size: 1em;">
+    <br>
+    <button onclick="sendLogin()">Send</button>
+</div>
+
+<div id="logged_in" style="display: none; flex: auto; flex-direction: row; width: 100%;">
+    <div id="content2" style="text-align: center; width: 40%; flex: auto; flex-wrap: wrap; margin-top: 13%; flex-direction: column;">
+        <h2>Create job</h2>
+        <input type="text" id="projectname" placeholder="Project Name" style="font-size: 1em;">
+        <br>
+        <input type="text" id="ssh-endpoint" placeholder="Git SSH URI"style="font-size: 1em;">
+        <br>
+        <button onclick="newProject()">Send</button>
+    </div>
+
+    <div id="content3" style="text-align: center; width: 40%; flex: auto; flex-wrap: wrap; margin-top: 13%; flex-direction: column;">
+        <h2>Get job status</h2>
+        <input type="text" id="projectname2" placeholder="Project Name" style="font-size: 1em;">
+        <br>
+        <input type="text" id="git-name" placeholder="Git Repository Name"style="font-size: 1em;">
+        <br>
+        <button onclick="checkStatus()">Send</button>
+    </div>
+</div>
+
+<pre id="result" style="display: none; overflow: scroll; height: 400px; width: 80%; margin-left: 10%;  background-color: white; color: black; margin-top: 13%;">
+    </pre>
+
+</body>
+
+<script>
+    var token = ''
+    function sendLogin() {
+        var xhr = new XMLHttpRequest();
+
+        xhr.onreadystatechange = function () {
+            if (this.readyState != 4) return;
+
+            if (this.status == 200) {
+                var data = JSON.parse(this.responseText);
+                token = data['access_token']
+                document.getElementById("content").style.display = "None"
+                document.getElementById("logged_in").style.display = "flex"
+                document.getElementById("result").style.display = "flex"
+
+                // we get the returned data
+            }
+
+        // end of state change: it can be after some time (async)
+        };
+        xhr.open("POST", "http://localhost:9999/auth", true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify({
+            "username": document.getElementById("username").value,
+            "password": document.getElementById("password").value
+        }));
+
+        document.getElementById("username").value = ''
+        document.getElementById("password").value = ''
+    }
+
+    function newProject() {
+        var xhr = new XMLHttpRequest();
+
+        xhr.onreadystatechange = function () {
+            if (this.readyState != 4) return;
+
+            if (this.status == 200) {
+                document.getElementById("result").innerHTML = this.responseText;
+
+                // we get the returned data
+            }
+
+        // end of state change: it can be after some time (async)
+        };
+        xhr.open("POST", "http://localhost:9999/api/new_job", true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'JWT ' + token);
+
+        xhr.send(JSON.stringify({
+            "project": document.getElementById("projectname").value,
+            "git-ssh-endpoint": document.getElementById("ssh-endpoint").value
+        }));
+
+    }
+
+    function checkStatus() {
+        var xhr = new XMLHttpRequest();
+
+        xhr.onreadystatechange = function () {
+            if (this.readyState != 4) return;
+
+            if (this.status == 200) {
+                document.getElementById("result").innerHTML = this.responseText;
+
+                // we get the returned data
+            }
+
+        // end of state change: it can be after some time (async)
+        };
+        xhr.open("POST", "http://localhost:9999/api/status", true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'JWT ' + token);
+
+        xhr.send(JSON.stringify({
+            "project": document.getElementById("projectname2").value,
+            "git-project-name": document.getElementById("git-name").value
+        }));
+
+    }
+</script>

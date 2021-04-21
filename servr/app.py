@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_jwt import JWT, jwt_required, current_identity
 from werkzeug.security import safe_str_cmp, generate_password_hash, check_password_hash
 import sqlite3
 import subprocess
 app = Flask(__name__)
 
+#admin:veryVerySecurePassword2021
 
 app.config["DATABASE"] = './database.db'
 app.config['SECRET_KEY'] = 'ea52503b822061bb0cba460xaaaq946e8e9f5d2d55db38b6657fc7d371a0e8ce396cb'
@@ -18,11 +19,8 @@ STATUS_PATH= FUZZER_DIRECTORY + 'status.sh'
 @jwt_required()
 def new_job():
     content = request.json
-    if not auth(content['token']):
-        return 'Not allowed'
-        
     project_name = content['project']
-    git = content['git_ssh_endpoint']
+    git = content['git-ssh-endpoint']
 
     subprocess.run(['./new-job.sh', project_name, git])
     return "OK " + project_name + " " + git
@@ -30,10 +28,7 @@ def new_job():
 @app.route('/api/status', methods=['POST'])
 @jwt_required()
 def status():
-    content = request.json
-    if not auth(content['token']):
-        return 'Not allowed'
-    
+    content = request.json    
     project_name = content['project']
     git = content['git-project-name']
 
@@ -82,6 +77,10 @@ def register():
 def protected():
     return '%s' % current_identity
 
+
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html') 
 
 from db import *
 from auth import *
