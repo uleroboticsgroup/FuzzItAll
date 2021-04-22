@@ -38,9 +38,6 @@ else
 
     # Use a new  fuzzerName
     _fuzzerName=$2
-    echo ${_fuzzerName} > $FUZZ_NAME_PATH/$_JOB.name
-
-    echo "DEBUG: _fuzzerName=$_fuzzerName _oldFuzzerName=$_oldFuzzerName"
 
     # Get basedir
     _PWD=$(pwd)

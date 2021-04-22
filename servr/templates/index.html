@@ -85,6 +85,8 @@
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.setRequestHeader('Authorization', 'JWT ' + token);
 
+        document.getElementById("result").innerHTML = "Sending job...";
+
         xhr.send(JSON.stringify({
             "project": document.getElementById("projectname").value,
             "git-ssh-endpoint": document.getElementById("ssh-endpoint").value

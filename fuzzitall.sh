@@ -19,10 +19,10 @@ CC=$CC $compilation_file
 
 cd ../..
 # Fuzz
-sbatch -J $project_name-$project_path-M run-master_fuzzer.slurm $project_name/$project_path
+jid1=$(sbatch -J $project_name-$project_path-M run-master_fuzzer.slurm $project_name/$project_path)
 echo "Waiting for the master to start..."
 sleep 5
 for i in $(seq 1 $slaves);
 do
-   sbatch -J $project_name-$project_path-$i run-slave_fuzzer.slurm $project_name/$project_path $i
+   sbatch -J $project_name-$project_path-$i run-slave_fuzzer.slurm --dependency=after:$jid1 $project_name/$project_path $i
 done
