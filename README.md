@@ -30,6 +30,11 @@ Es un servidor Flask (Python) con un index.html sencillo como front. Utiliza JWT
 
 Está en fase beta y es extremadamente esquemático.
 
+## Slurm
+
+Actualmente hay un Slurm activo en Yogui, desplegado en dockers. Accediendo al interior de `slurmctld` está el repositorio del fuzzer, el AFL y todo. 
+
+Desde ahi podeis hacer pruebas.
 
 
 
