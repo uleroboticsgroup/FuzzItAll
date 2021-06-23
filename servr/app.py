@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_file
 from flask_jwt import JWT, jwt_required, current_identity
 from werkzeug.security import safe_str_cmp, generate_password_hash, check_password_hash
 import sqlite3
@@ -14,6 +14,35 @@ FUZZER_DIRECTORY='/data/fuzzitall/'
 FUZZER_PATH= FUZZER_DIRECTORY + "fuzzitall.sh"
 STATUS_PATH= FUZZER_DIRECTORY + 'status.sh'
 
+def get_jobs(current_user):
+    db = get_db()
+    result = ''
+
+    jobs = db.execute(
+        'SELECT * FROM jobs WHERE author_id = ?', (current_user.id,)
+    ).fetchall()
+
+    for job in jobs:
+        result += f'({job["id"]}) {job["project"]} --- Created at: {job["created"]}. \n'
+
+    return result
+
+@app.route('/api/results', methods=['GET'])
+@jwt_required()
+def results():
+    project_id = request.args.get("id")
+    db = get_db()
+
+    job = db.execute(
+        'SELECT * FROM jobs WHERE id = ? and author_id = ?', (project_id, current_identity.id,)
+    ).fetchone()
+
+    if job is None:
+        return 'There is no job with that ID or your are not authorized to see it.'
+
+    process = subprocess.run(['./get_results.sh', job['project'], job['sshProject']], stdout=subprocess.PIPE)
+    return send_file(f"outputs/{job['project']}/{job['project']}.tar.gz", as_attachment=True)
+
 
 @app.route('/api/new_job', methods=['POST'])
 @jwt_required()
@@ -21,19 +50,39 @@ def new_job():
     content = request.json
     project_name = content['project']
     git = content['git-ssh-endpoint']
+    db = get_db()
 
+    if db.execute(
+        'SELECT * FROM jobs WHERE project = ?', (project_name,)
+    ).fetchone() is not None:
+        return 'A job with that name already exists'
+
+    db.execute(
+        'INSERT INTO jobs (status, author_id, project, sshProject) VALUES (?, ?, ?, ?)',
+        (False, current_identity.id, project_name, git[git.rfind('/')+1: git.rfind('.')])
+    )
+    db.commit()
     subprocess.run(['./new-job.sh', project_name, git])
-    return "OK " + project_name + " " + git
+    return get_jobs(current_identity)
 
-@app.route('/api/status', methods=['POST'])
+@app.route('/api/status', methods=['GET'])
 @jwt_required()
 def status():
-    content = request.json    
-    project_name = content['project']
-    git = content['git-project-name']
+    project_id = request.args.get("id")
+    if project_id is not None:
+        db = get_db()
 
-    process = subprocess.run(['./status.sh', project_name, git], stdout=subprocess.PIPE)
-    return process.stdout
+        job = db.execute(
+            'SELECT * FROM jobs WHERE id = ? and author_id = ?', (project_id, current_identity.id,)
+        ).fetchone()
+
+        if job is None:
+            return 'There is no job with that ID or your are not authorized to see it.'
+
+        process = subprocess.run(['./status.sh', job['project'], job['sshProject']], stdout=subprocess.PIPE)
+        return process.stdout
+    else:
+        return get_jobs(current_identity)
 
 
 @app.route('/register', methods=['POST'])

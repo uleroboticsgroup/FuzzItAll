@@ -48,5 +48,7 @@ def identity(payload):
 
     if user is None:
         error = 'Incorrect username.'
+        return None
 
+    user = create_object(user)
     return user

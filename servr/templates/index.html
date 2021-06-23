@@ -21,13 +21,14 @@
         <button onclick="newProject()">Send</button>
     </div>
 
+    <button style ="margin-top: 16%; height: 20px;"onclick="getJobsInformation()">Get Jobs</button>
+
     <div id="content3" style="text-align: center; width: 40%; flex: auto; flex-wrap: wrap; margin-top: 13%; flex-direction: column;">
-        <h2>Get job status</h2>
-        <input type="text" id="projectname2" placeholder="Project Name" style="font-size: 1em;">
+        <h2>Job Information</h2>
+        <input type="text" id="id" placeholder="ID" style="font-size: 1em;">
         <br>
-        <input type="text" id="git-name" placeholder="Git Repository Name"style="font-size: 1em;">
-        <br>
-        <button onclick="checkStatus()">Send</button>
+        <button onclick="checkStatus()">Get Info</button>
+        <button onclick="downloadResults()">Download crashes</button>
     </div>
 </div>
 
@@ -56,7 +57,7 @@
 
         // end of state change: it can be after some time (async)
         };
-        xhr.open("POST", "http://yogui.unileon.es:9999/auth", true);
+        xhr.open("POST", "http://localhost:9999/auth", true);
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.send(JSON.stringify({
             "username": document.getElementById("username").value,
@@ -81,7 +82,7 @@
 
         // end of state change: it can be after some time (async)
         };
-        xhr.open("POST", "http://yogui.unileon.es:9999/api/new_job", true);
+        xhr.open("POST", "http://localhost:9999/api/new_job", true);
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.setRequestHeader('Authorization', 'JWT ' + token);
 
@@ -108,14 +109,71 @@
 
         // end of state change: it can be after some time (async)
         };
-        xhr.open("POST", "http://yogui.unileon.es:9999/api/status", true);
+        xhr.open("GET", "http://localhost:9999/api/status?id=" + document.getElementById("id").value, true);
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.setRequestHeader('Authorization', 'JWT ' + token);
 
-        xhr.send(JSON.stringify({
-            "project": document.getElementById("projectname2").value,
-            "git-project-name": document.getElementById("git-name").value
-        }));
+        xhr.send();
+
+    }
+
+
+    function download (){
+    var postData = new FormData();
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', downloadUrl, true);
+		xhr.responseType = 'blob';
+		xhr.onload = function (e) {
+			var blob = xhr.response;
+			this.saveOrOpenBlob(blob);
+		}.bind(this)
+		xhr.send(postData);
+    }
+
+    function saveBlob(blob, fileName) {
+        var a = document.createElement('a');
+        a.href = window.URL.createObjectURL(blob);
+        a.download = fileName;
+        a.dispatchEvent(new MouseEvent('click'));
+    }
+
+    function downloadResults() {
+        var xhr = new XMLHttpRequest();
+
+        xhr.onload = function (e) {
+            var blob = e.currentTarget.response;
+            var contentDispo = e.currentTarget.getResponseHeader('Content-Disposition');
+            // https://stackoverflow.com/a/23054920/
+            var fileName = contentDispo.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)[1];
+            saveBlob(blob, fileName);
+        // end of state change: it can be after some time (async)
+        };
+        xhr.open("GET", "http://localhost:9999/api/results?id=" + document.getElementById("id").value, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'JWT ' + token);
+        xhr.responseType = 'blob';
+        xhr.send();
+
+    }
+
+    function getJobsInformation() {
+        var xhr = new XMLHttpRequest();
+
+        xhr.onreadystatechange = function () {
+            if (this.readyState != 4) return;
+
+            if (this.status == 200) {
+                document.getElementById("result").innerHTML = this.responseText;
+
+                // we get the returned data
+            }
+
+        // end of state change: it can be after some time (async)
+        };
+        xhr.open("GET", "http://localhost:9999/api/status", true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'JWT ' + token);
+        xhr.send();
 
     }
 </script>
