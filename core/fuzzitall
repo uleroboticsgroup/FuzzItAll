@@ -1,0 +1,131 @@
+#!/bin/bash
+######################################################################
+#
+#   fuzzitall - Main script file for running the FuzzItAll tool.
+#
+#   Usage: ./fuzzitall <source_code_directory>
+#
+######################################################################
+
+# load context variables
+source FIA.config
+
+
+# FUNCTIONS
+# --------------------------------------------------------------------
+
+function print_usage
+{
+   printf "$0 - fuzzing made easy\n\n"
+   printf "Usage: ./fuzzitall source_code_directory\n"
+}
+
+function get_project_name
+{
+   local projectPath=$1
+
+   # remove ending slash character (/) from path (if necessary)
+   if [[ ${projectPath} == */ ]];
+   then
+      projectPath=${projectPath%?}
+   fi
+
+   # extract the project name and return it
+   echo `echo ${projectPath} | rev | cut -d/ -f1 | cut -d. -f2 | rev`
+}
+
+function get_slurm_jobid
+{
+   # Slurm message is like: "Submitted batch job JOB_ID",
+   # so remove all words except the last one
+   echo `echo $1 | rev | cut -f 1 -d ' ' | rev`
+}
+
+function prepare_source
+{
+   local projectName=$1
+   local projectPath=$2
+
+   local workingDir="${FIA_WORKSPACE}${projectName}/"
+
+   # move sources to the working directory...
+   if [[ ! -d "${workingDir}" ]];
+   then
+      mkdir -p ${workingDir}
+   fi
+   cp -rT ${projectPath} ${workingDir}
+
+   # ...and return its path
+   echo ${workingDir}
+}
+
+function prepare_binary
+{
+   local sourceDir=$1
+   local projectName=$2
+
+   local jobName="FuzzItAll-PrepareBinary-${projectName}"
+
+   # prepare binary (i.e. build) from target source code
+   local jobID=$(sbatch --job-name=${jobName} ./slurm/prepare-binary.slurm ${sourceDir})
+   jobID=$(get_slurm_jobid "${jobID}")
+
+   echo ${jobID}
+}
+
+function run_fuzzing
+{
+   local projectName=$1
+   local workingDir=$2
+   local buildJobID=$3
+
+   # get number of requested slaves
+   source "${workingDir}${FIA_TARGET_CONFIG_FILE}"
+   if [[ ${slaves} -gt ${FIA_MAX_SECONDARY_JOBS} ]];
+   then
+      slaves=${FIA_MAX_SECONDARY_JOBS}
+   fi
+
+   # fuzz binary by running the primary job...
+   local primJobName="FuzzItAll-PrimaryFuzzer-${projectName}"
+   local primJobID=$(sbatch --job-name=${primJobName} --dependency=afterok:${buildJobID} ./slurm/run-primary_fuzzer.slurm ${workingDir})
+   primJobID=$(get_slurm_jobid "${primJobID}")
+
+   # ...give some time to the primary fuzzer to run...
+   sleep 5
+
+   # ...and the secondary jobs (if apply)
+   for i in $(seq 1 ${slaves});
+   do
+      local secondJobName="FuzzItAll-SecondaryFuzzer${i}-${projectName}"
+      sbatch --job-name=${secondJobName} --dependency=after:${primJobID} ./slurm/run-secondary_fuzzer.slurm ${workingDir} ${i}
+   done
+}
+
+
+# MAIN SCRIPT
+# --------------------------------------------------------------------
+
+# check usage
+if [[ $# -eq 0 ]];
+then
+   printf "Error! No arguments supplied.\n" >&2
+   print_usage
+   exit 22
+fi
+
+projectPath=$1
+
+# check that the project given exists
+if [[ ! -d ${projectPath} ]];
+then
+   printf "Error! ${projectPath} does not exist.\n"  >&2
+   exit 22
+fi
+
+projectName=$(get_project_name "${projectPath}")
+workingDir=$(prepare_source "${projectName}" "${projectPath}")
+binaryJobID=$(prepare_binary "${workingDir}" "${projectName}")
+run_fuzzing "${projectName}" "${workingDir}" "${binaryJobID}"
+
+exit 0

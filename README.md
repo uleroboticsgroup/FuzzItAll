@@ -1,40 +1,87 @@
-# The fuzzer
+# FuzzItAll
 
-## Estructura del fuzzer
+A service to ease the process of fuzzing and instrumenting binaries using the capabilities of a High-Performance Computing Enviroment (HPCE).
 
-El fuzzer consta de un único script: `fuzzitall.sh`. Este es el encargado de lanzar todos los trabajos asociados a un proyecto. Recibe dos variables: el nombre del proyecto y enlace al repositorio.
+## Overview
 
-El fuzzer requiere que el repositorio contenga 1 fichero:
+### Organization
 
-* `conf.conf`:
-    * compilation_file: script para compilar el proyecto
-    * run: linea para ejecutar el proyecto
-    * corpus_path: el directorio donde se encuentra el corpus
+The project is organized as follows:
 
-Para que el fuzzer pueda descargarse el proyecto es necesario añadir el usuario del Fuzzer al proyecto en gitlab.
+    .
+    ├── core/                    # Core tool
+    │   ├── slurm/                  # Slurm scripts to run jobs related to the fuzzing process
+    │   ├── utils/                  # Utilities scripts
+    │   ├── FIA.config/             # Main configuration file
+    │   └── fuzzitall/              # Main executable script
+    ├── external/                # External fuzzing tools
+    │   └── AFL++/                  # [AFL++](https://aflplus.plus/)
+    ├── web_service/             # Web server for end users to run FuzzItAll
+    ├── setup.sh                 # Deployment script
+    └── README.md
 
-Hay un fichero que contiene la configuración general denominado  `HS.conf`. Este contiene las rutas del AFL, numero de slaves para los trabajos, etc.
+There are two main components: core tool and web service
 
-Hay un repositorio de ejemplo para probar la ejecucion: 
-https://niebla.unileon.es/DavidFerng/test-fuzz
+#### Core tool
 
-Para ejecutar este seria:
+The core tool consists in a set of bash and Slurm scripts that runs a general fuzzing pipeline: 1) prepare the source code for binary instrumentation; and 2) fuzz the output binary using parallel jobs.
 
-`./fuzzitall.sh TestJob1 ssh://git@niebla.unileon.es:5022/DavidFerng/test-fuzz.git`
+The tool relies on a configuration file named `FIA.config` that contains a list of general purpose variables and paths.
 
-## Web server
+#### Web service
 
-La carpeta `servr` contiene el codigo del servidor web desde el que poder lanzar jobs, ver el estado y descargarse resultados.
+> Under construction :-)
 
-Es un servidor Flask (Python) con un index.html sencillo como front. Utiliza JWT para la autenticación de usuarios.
+The web service is written in Python using [Flask](https://flask.palletsprojects.com/en/2.0.x/) and [JWT](https://pyjwt.readthedocs.io/en/stable/). This service allow end users:
 
-Está en fase beta y es extremadamente esquemático.
+* Provide a database of authenticated users.
+* Run fuzzing jobs in an HPCE.
+* Check their status and download the results.
 
-## Slurm
+### Installation
 
-Actualmente hay un Slurm activo en Yogui, desplegado en dockers. Accediendo al interior de `slurmctld` está el repositorio del fuzzer, el AFL y todo. 
+#### Core tool
 
-Desde ahi podeis hacer pruebas.
+An installation script (`setup.sh`) is provided to deploy FuzzItAll core tool. Its usage is:
 
+```bash
+bash setup.sh <installationDir>
+```
 
+This process will copy the core tool to a target directory (`installationDir`), initialize the main configuration file (`FIA.config`) and build all available fuzzers.
 
+#### Web service
+
+> Under construction :-)
+
+## Usage
+
+### Core tool
+
+Running the tool is as simple as typing the command:
+
+```bash
+./fuzzitall <source_code_directory>
+```
+
+This will automatically create a copy of the repository stored in `source_code_directory`, prepare the source code for binary instrumentation and finally run the fuzzing process in a distributed way over the output binary.
+
+To successfully run the tool, `source_code_directory` must include a configuration file named `conf.conf`. This file defines three variables:
+
+1. *compilation_file*: script file to build the project
+2. *run*: command to run the output binary
+3. *corpus_path*: directory containing the corpus to test the output binary
+
+An example repository for testing purposes can be fount at https://niebla.unileon.es/DavidFerng/test-fuzz
+
+### Web service
+
+> Under construction :-)
+
+## Credits
+
+FuzzItAll is licensed under [MIT license](https://choosealicense.com/licenses/mit/). It has been funded by the Addendum no. 4 to the Universidad de León-Instituto Nacional de Ciberseguridad (INCIBE) Convention Framework on the "Detection of new threats and unknown patterns" and was originally designed and developed by the following people:
+
+* David Fernández
+* Gonzalo Esteban
+* Francisco Borja Garnelo
