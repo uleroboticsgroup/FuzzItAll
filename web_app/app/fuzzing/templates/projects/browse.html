@@ -1,0 +1,37 @@
+{#
+
+fuzzing/templates/projects/browse.html - Page to create and review individual
+fuzzing projects.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/table.html.jinja' %}
+
+{% import "macros/time.html" as time_macros %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Fuzzing Projects' %}
+{% set description='Create and manage individual fuzzing projects' %}
+{% set prev_endpoint = {'endpoint': 'main.dashboard', 'label': 'Back'} %}
+{% set actions = [{'endpoint': 'fuzzing.create_project', 'label': 'Create Project'}] %}
+{% set endpoint = 'fuzzing.browse_projects' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_headers %}
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Name', 'name', page_meta) }}</th>
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'State', 'state', page_meta) }}</th>
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Created On', 'created', page_meta) }}</th>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_row %}
+<th scope="row"><a href="{{ url_for('fuzzing.read_project', project_id=item.id) }}">{{ item.name }}</a></th>
+<td>{{ item.state.name }}</td>
+<td>{{ time_macros.format_datetime(item.created) }}</td>
+{% endblock %}

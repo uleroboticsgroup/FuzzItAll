@@ -1,87 +1,35 @@
 # FuzzItAll
 
-A service to ease the process of fuzzing and instrumenting binaries using the capabilities of a High-Performance Computing Enviroment (HPCE).
+A platform to ease the working process of grey-box fuzzing using the capabilities of a High-Performance Computing (HPC) system.
+
+![FuzzItAll overview](docs/img/fia_overview.svg)
 
 ## Overview
-
-### Organization
 
 The project is organized as follows:
 
     .
-    ├── core/                    # Core tool
-    │   ├── slurm/                  # Slurm scripts to run jobs related to the fuzzing process
-    │   ├── utils/                  # Utilities scripts
-    │   ├── FIA.config/             # Main configuration file
-    │   └── fuzzitall/              # Main executable script
-    ├── external/                # External fuzzing tools
-    │   └── AFL++/                  # [AFL++](https://aflplus.plus/)
-    ├── web_service/             # Web server for end users to run FuzzItAll
-    ├── setup.sh                 # Deployment script
-    └── README.md
+    ├── cli_tool/       # Command line tool to run grey-box fuzzing engines on an HPC system
+    ├── web_app/        # Web application to request the creation of projects containing fuzz targets
+    ├── docs/           # Project documentation
+    └── LICENSE.md      # Software license file
 
-There are two main components: core tool and web service
+The operation of the platform is based on two components: a [command line tool](cli_tool/README.md) that acts as a backend and a [web application](web_app/README.md) acting as a frontend. For more information, see their corresponding directories.
 
-#### Core tool
+## Versioning
 
-The core tool consists in a set of bash and Slurm scripts that runs a general fuzzing pipeline: 1) prepare the source code for binary instrumentation; and 2) fuzz the output binary using parallel jobs.
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://niebla.unileon.es/securecoding/fuzzitall/tags).
 
-The tool relies on a configuration file named `FIA.config` that contains a list of general purpose variables and paths.
+## Authors
 
-#### Web service
+* **Gonzalo Esteban** - *Lead developer* - [gonestco](https://github.com/gonestco)
+* **David Fernández** - *Initial work* - [litios](https://github.com/litios)
+* **Francisco Borja Garnelo** - *Original concept* - [b0rh](https://github.com/b0rh)
 
-> Under construction :-)
+## License
 
-The web service is written in Python using [Flask](https://flask.palletsprojects.com/en/2.0.x/) and [JWT](https://pyjwt.readthedocs.io/en/stable/). This service allow end users:
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
 
-* Provide a database of authenticated users.
-* Run fuzzing jobs in an HPCE.
-* Check their status and download the results.
+## Acknowledgments
 
-### Installation
-
-#### Core tool
-
-An installation script (`setup.sh`) is provided to deploy FuzzItAll core tool. Its usage is:
-
-```bash
-bash setup.sh <installationDir>
-```
-
-This process will copy the core tool to a target directory (`installationDir`), initialize the main configuration file (`FIA.config`) and build all available fuzzers.
-
-#### Web service
-
-> Under construction :-)
-
-## Usage
-
-### Core tool
-
-Running the tool is as simple as typing the command:
-
-```bash
-./fuzzitall <source_code_directory>
-```
-
-This will automatically create a copy of the repository stored in `source_code_directory`, prepare the source code for binary instrumentation and finally run the fuzzing process in a distributed way over the output binary.
-
-To successfully run the tool, `source_code_directory` must include a configuration file named `conf.conf`. This file defines three variables:
-
-1. *compilation_file*: script file to build the project
-2. *run*: command to run the output binary
-3. *corpus_path*: directory containing the corpus to test the output binary
-
-An example repository for testing purposes can be fount at https://niebla.unileon.es/DavidFerng/test-fuzz
-
-### Web service
-
-> Under construction :-)
-
-## Credits
-
-FuzzItAll is licensed under [MIT license](https://choosealicense.com/licenses/mit/). It has been funded by the Addendum no. 4 to the Universidad de León-Instituto Nacional de Ciberseguridad (INCIBE) Convention Framework on the "Detection of new threats and unknown patterns" and was originally designed and developed by the following people:
-
-* David Fernández
-* Gonzalo Esteban
-* Francisco Borja Garnelo
+* This project has been funded by the Addendums no. 4 and no. 8 to the Universidad de León-Instituto Nacional de Ciberseguridad (INCIBE) Convention Framework on the "Detection of new threats and unknown patterns".

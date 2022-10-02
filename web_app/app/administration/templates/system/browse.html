@@ -1,0 +1,50 @@
+{#
+
+administration/templates/system/browse.html - Page to manage information
+about the web service itself.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+{% import "macros/forms.html.jinja" as fia_form %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'System' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    {% set description = 'Information about the web service itself' -%}
+    {% set prev_endpoint = {'endpoint': 'main.dashboard', 'label': 'Back'} -%}
+    <!-- Section header -->
+    {{ fia_base.render_section_header(page_title, description, prev_endpoint) }}
+    <!-- Feedback panel -->
+    {{ fia_base.render_feedback_panel(get_flashed_messages()) }}
+    <article>
+        <header>Settings</header>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            {{ fia_form.render_textfield(form.items_pp) }}
+            {{ form.submit }}
+        </form>
+    </article>
+    <article>
+        <header>Log</header>
+        <textarea readonly cols="120" rows="20" wrap="soft"
+            style="font-family: Courier;">{% for line in log %}{{ line }}{% endfor %}</textarea>
+        <footer>
+            <nav>
+                <ul></ul>
+                <ul>
+                    <li><a href="{{ url_for('administration.download_system_log') }}" role="button">Download</a></li>
+                </ul>
+            </nav>
+        </footer>
+    </article>
+</section>
+{% endblock %}

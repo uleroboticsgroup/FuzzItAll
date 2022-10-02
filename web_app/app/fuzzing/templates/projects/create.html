@@ -1,0 +1,156 @@
+{#
+
+fuzzing/templates/projects/create.html - Form to create a fuzzing project.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Create Project' %}
+{% set description = 'Create a fuzzing project' %}
+{% set prev_endpoint = {'endpoint': 'fuzzing.browse_projects', 'label': 'Cancel'} %}
+{% set onsubmit_cb = "requestProject(event)" %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<h3>Project Details</h3>
+<div>
+    <!-- Name -->
+    {{ fia_form.render_textfield(form.name, placeholder="Name") }}
+    <!-- Repository URL -->
+    {{ fia_form.render_textfield(form.url, placeholder="Git repository URL (HTTP or SSH)") }}
+    <p><small>NOTE: Currently only public repositories are supported.</small></p>
+    <!-- Repository Credentials -->
+    {{ fia_form.render_radiobutton(form.need_token, onchange="showAccessTokens(event)") }}
+    {{ fia_form.render_selectfield(form.tokens, style="display:none") }}
+</div>
+<h3>HPC Settings</h3>
+<div>
+    <!-- HPC System -->
+    {{ fia_form.render_selectfield(form.hpcs, onchange="updateHPCValues(event)") }}
+    <!-- Wall time -->
+    {{ fia_form.render_textfield(form.wall_time_dd, min=0, max=0) }}
+    {{ fia_form.render_textfield(form.wall_time_hhmm, placeholder="HH:MM", type="time") }}
+</div>
+<h3>Fuzzing Settings</h3>
+<div>
+    <!-- Number of parallel tasks -->
+    {{ form.num_tasks.label(style="display:inline-block;") }}
+    (<output id="{{ form.num_tasks.id }}-output" for="num_tasks">{{ form.num_tasks.data|int }}</output>)
+    {{ form.num_tasks(min=0, max=0, oninput="updateTasksLabel(value)") }}
+</div>
+<!-- Loading animation -->
+<article id="loading" style="display: none;" aria-busy="true"></article>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_scripts %}
+<script>
+    async function requestProject(event) {
+        event.preventDefault();
+
+        // show loading animation
+        let loading_div = document.getElementById('loading');
+        loading_div.style.display = 'block';
+        loading_div.innerText = 'Requesting project, please wait...';
+
+        // remove all aria-invalid attributes
+        document.querySelectorAll('[aria-invalid]:not([aria-invalid="false"])').forEach(e => e.removeAttribute('aria-invalid'));
+
+        // clear any feedback text
+        let feedback_div = document.getElementById('feedback');
+        feedback_div.style.display = 'none';
+        feedback_div.getElementsByTagName('ul')[0].innerHTML = '';
+
+        // lock submit button
+        let submit_btn = document.getElementById('{{ form.submit.id }}');
+        submit_btn.setAttribute('aria-busy', 'true');
+
+        // retrieve form data
+        const submit_url = '{{ url_for("fuzzing.create_project") }}';
+        let form_data = new FormData();
+        form_data.csrf_token = document.getElementById('{{ form.csrf_token.id }}').value;
+        form_data.name = document.getElementById('{{ form.name.id }}').value;
+        form_data.url = document.getElementById('{{ form.url.id }}').value;
+        form_data.need_token = document.querySelector('input[name="{{ form.need_token.name }}"]:checked').value;
+        if (form_data.need_token == "y") {
+            form_data.tokens = document.getElementById('{{ form.tokens.id }}').value;
+        }
+        form_data.hpcs = document.getElementById('{{ form.hpcs.id }}').value;
+        form_data.wall_time_dd = document.getElementById('{{ form.wall_time_dd.id }}').value;
+        form_data.wall_time_hhmm = document.getElementById('{{ form.wall_time_hhmm.id }}').value;
+        form_data.num_tasks = document.getElementById('{{ form.num_tasks.id }}').value;
+
+        // dispatch request
+        const response = await fetch(submit_url, {
+            'method': 'POST',
+            'headers': new Headers({ 'Content-Type': 'application/json' }),
+            'body': JSON.stringify(form_data)
+        });
+
+        // check response
+        if (response.redirected) {
+            window.location = response.url
+        } else {
+            const errors = await response.json();
+            console.log(errors);
+            console.log(typeof errors);
+
+            // populate feedback container with list of errors
+            feedback_div.style.display = (Object.keys(errors).length) ? 'block' : 'none';
+            let errors_ul = feedback_div.getElementsByTagName('ul')[0];
+            Object.keys(errors).forEach((key) => {
+                let field = document.getElementById(key);
+                if (!!field) {
+                    field.setAttribute('aria-invalid', 'true');
+                }
+                errors_ul.innerHTML += '<li>' + errors[key][0] + '</li>';
+            });
+
+            // set focus on feedback container
+            window.location.hash = '#feedback';
+            history.replaceState("", "", location.pathname);
+
+            // unlock submit button
+            submit_btn.setAttribute('aria-busy', 'false');
+
+            // hide loading animation
+            loading_div.style.display = 'none';
+            loading_div.innerText = '';
+        }
+    };
+
+    function showAccessTokens(event) {
+        let tokens = document.getElementById('{{ form.tokens.id }}');
+        tokens.style.display = (event.target.value == 'y') ? 'block' : 'none';
+    };
+
+    function updateHPCValues(event) {
+        const hpc = {{ hpcs_data | tojson
+    }}.find(hpc => hpc.id === parseInt(event.target.value));
+    if (!!hpc) {
+        let num_tasks = document.getElementById('{{ form.num_tasks.id }}');
+        num_tasks.max = hpc.max_tasks;
+        num_tasks.value = (num_tasks.value > num_tasks.max) ? num_tasks.max : num_tasks.value;
+        num_tasks.dispatchEvent(new Event('input'));
+
+        let wall_time_dd = document.getElementById('{{ form.wall_time_dd.id }}');
+        wall_time_dd.max = Math.floor(hpc.max_wall_time / 86400);
+        wall_time_dd.value = (wall_time_dd.value > wall_time_dd.max) ? wall_time_dd.max : wall_time_dd.value;
+    }
+    };
+
+    function updateTasksLabel(value) {
+        let tasks = document.getElementById('{{ form.num_tasks.id }}-output')
+        tasks.value = value;
+    };
+
+</script>
+{% endblock %}

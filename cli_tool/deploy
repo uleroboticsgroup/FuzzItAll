@@ -1,0 +1,312 @@
+#!/bin/bash
+######################################################################
+#
+# deploy - Deployment script for FuzzItAll command line tool.
+#
+######################################################################
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Path to the directory where the tool will be temporarily deployed.
+readonly TMP_DIRECTORY="$(pwd)/tmp/"
+
+# Path to the tool's workspace.
+WORKSPACE_DIRECTORY=""
+
+# Path to the target directory where to finally deploy the tool.
+TARGET_DIRECTORY=""
+
+# Path to the scratch directory owned by the user who will run the tool.
+SCRATCH_DIRECTORY=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show script usage.
+# Arguments:
+#   None
+# Outputs:
+#   Writes a message on how to use this script to stdout.
+######################################################################
+function usage() {
+  printf "\nFuzzItAll command line tool for HPC systems (deployment script)\n"
+  printf -- "---------------------------------------------------------------\n\n"
+  printf "Usage: %s [-d target_directory] [-s scratch_directory]\n" "$0"
+  printf "\nThe following options are required:\n\n"
+  printf "  -d\tPath to the target directory where to deploy the FuzzItAll"
+  printf " command-line tool.\n"
+  printf "  -s\tPath to the scratch directory owned by the user who will"
+  printf " run the tool.\n"
+  printf "\nThe following option is not required:\n\n"
+  printf "  -h\tPrint usage.\n"
+  printf "\n"
+}
+
+######################################################################
+# Remove the temporary deployment directory.
+# Globals:
+#   TMP_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function cleanup() {
+  if [[ -d "${TMP_DIRECTORY}" ]]; then
+    rm -rf "${TMP_DIRECTORY}"
+  fi
+}
+
+######################################################################
+# Print an error.
+# Arguments:
+#   Message describing the cause of the error.
+# Outputs:
+#   Writes an error message to stderr.
+######################################################################
+function error() {
+  printf "[$(date +'%Y-%m-%d %T')]: %s\n" "$*" 1>&2
+}
+
+######################################################################
+# Display a message, remove temporary files and stop the script execution.
+# Arguments:
+#   Message describing the cause of the stop.
+# Outputs:
+#   Writes the cause of stop to stderr.
+# Returns:
+#   Exit code 1 (operation not permitted).
+######################################################################
+function die() {
+  local last_exit_status=$?
+
+  error "FATAL ERROR - $* (status ${last_exit_status})\n"
+  cleanup
+
+  exit 1
+}
+
+######################################################################
+# Check that the script arguments are valid and terminate the script execution
+# if they are not.
+# Globals:
+#   TARGET_DIRECTORY
+#   SCRATCH_DIRECTORY
+# Arguments:
+#   Flag indicating whether the target directory argument (-d) has been set.
+#   Flag indicating whether the scratch directory argument (-s) has been set.
+######################################################################
+function validate_arguments() {
+  local target_dir_flag=$1
+  local scratch_dir_flag=$2
+
+  # validate the target directory argument
+  if [[ "${target_dir_flag}" == 'false' ]]; then
+    die "Argument -d is required"
+  elif [[ -d "${TARGET_DIRECTORY}" ]]; then
+    die "Directory '${TARGET_DIRECTORY}' already exists"
+  fi
+
+  # validate the scratch directory argument
+  if [[ "${scratch_dir_flag}" == 'false' ]]; then
+    die "Argument -s is required"
+  elif [[ ! -d "${SCRATCH_DIRECTORY}" ]]; then
+    die "Directory '${SCRATCH_DIRECTORY}' does not exist"
+  fi
+}
+
+######################################################################
+# Assign a value to a variable in the tool's configuration file (FIA.config).
+# Globals:
+#   TMP_DIRECTORY
+# Arguments:
+#   Name of the variable in the tool's configuration file.
+#   Value of the variable in the tool's configuration file.
+######################################################################
+function set_fia_config_var() {
+  local fia_var=$1
+  local value=$2
+  local fia_config_file="${TMP_DIRECTORY}FIA.config"
+
+  sed -i "s|${fia_var}=\"\"|${fia_var}=\"${value}\"|g" "${fia_config_file}"
+  if (( $? != 0 )); then
+    error "Variable '${fia_var}' could not be assigned in FIA.config"
+  fi
+}
+
+######################################################################
+# Initialize the deployment process, creating a temporary directory,
+# copying and configuring the tool's files and creating the workspace
+# directory.
+# Globals:
+#   TMP_DIRECTORY
+#   TARGET_DIRECTORY
+#   SCRATCH_DIRECTORY
+#   WORKSPACE_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function initialize_deployment() {
+  printf "* Initializing deployment...\n"
+
+  # create temporary deployment directory
+  mkdir -p "${TMP_DIRECTORY}" || die "Failed to create temporary directory."
+
+  # make a copy of the core files in the temporary deployment directory
+  cp -r ./core/* "${TMP_DIRECTORY}" || "Failed to copy core files"
+
+  # update FIA.config with the given paths
+  set_fia_config_var "FIA_ROOT" "${TARGET_DIRECTORY}"
+  set_fia_config_var "FIA_WORKSPACE" "${SCRATCH_DIRECTORY}"
+
+  # setup all submission scripts used by the tool with the supplied parameters
+  local setup_jobs_script="./core/utils/setup-submission-scripts"
+  local descriptor_file="./slurm.conf"
+  bash "${setup_jobs_script}" -d "./fuzzers/" -f "${descriptor_file}" \
+    || die "Failed to setup submission scripts (fuzzers)"
+  bash "${setup_jobs_script}" -d "${TMP_DIRECTORY}" -f "${descriptor_file}" \
+    || die "Failed to setup submission scripts (core)"
+
+  # give execution permissions to the tool and its utils scripts
+  chmod +x "${TMP_DIRECTORY}fuzzitall"
+  chmod +x "${TMP_DIRECTORY}utils/"*
+
+  # finally, create the workspace directory
+  mkdir -p ${WORKSPACE_DIRECTORY} \
+    || die "Failed to create the workspace directory"
+}
+
+######################################################################
+# Build all available fuzzers. If no fuzzers are built, quit the script.
+# Globals:
+#   TMP_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function build_fuzzers() {
+  printf "* Building fuzzers...\n"
+
+  local fuzzer_avail='false'
+
+  if [[ "$(ls -A ./fuzzers/)" ]]; then
+    local fuzzers_tmp_dir="${TMP_DIRECTORY}fuzzers"
+
+    mkdir -p "${fuzzers_tmp_dir}" || die "Failed to create fuzzers directory"
+
+    # loop through all available fuzzers and build each one of them
+    for fuzzer_dir in ./fuzzers/*/ ; do
+      local fuzzer_name="$(basename ${fuzzer_dir})"
+      local build_script="${fuzzer_dir}build-fuzzer.slurm"
+      local job_name="FuzzItAll-BuildFuzzer-${fuzzer_name}"
+
+      sbatch --quiet --wait --job-name=${job_name} --chdir="${fuzzer_dir}" \
+            --output="./log/%x_%A.out" --error="./log/%x_%A.err" \
+            ${build_script} "${fuzzers_tmp_dir}"
+      if (( $? == 0 )); then
+        printf "\t- Fuzzer '%s' built successfully\n" "${fuzzer_name}"
+        fuzzer_avail='true'
+      else
+        error "\t- Failed to build fuzzer '${fuzzer_name}'\n"
+      fi
+    done
+  fi
+
+  # abort deployment if there are no fuzzers available
+  if [[ "${fuzzer_avail}" == 'false' ]]; then
+    die "No fuzzers available"
+  fi
+}
+
+######################################################################
+# Deploy the tool in the target directory.
+# Globals:
+#   TARGET_DIRECTORY
+#   TMP_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function deploy_tool() {
+  printf "* Deploying tool...\n"
+
+  # create target directory
+  mkdir -p "${TARGET_DIRECTORY}" || die "Failed to create the target directory"
+
+  # move all files into it
+  cp -rP ${TMP_DIRECTORY}/* "${TARGET_DIRECTORY}" \
+    || die "Failed to deploy the tool"
+}
+
+######################################################################
+# Export environment variables used by the tool.
+# Globals:
+#   TARGET_DIRECTORY
+#   WORKSPACE_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function export_env_vars() {
+  printf "* Exporting environment variables...\n"
+
+  echo "" >> ~/.bashrc
+  echo "# FuzzItAll environment variables" >> ~/.bashrc
+  echo "export FIA_ROOT=${TARGET_DIRECTORY}" >> ~/.bashrc
+  echo "export FIA_WORKSPACE=${WORKSPACE_DIRECTORY}" >> ~/.bashrc
+}
+
+######################################################################
+# Main script function.
+# Globals:
+#   TARGET_DIRECTORY
+#   SCRATCH_DIRECTORY
+#   WORKSPACE_DIRECTORY
+# Arguments:
+#   Path to the target directory where to deploy the tool.
+#   Path to scratch directory owned by the user who will run the tool.
+######################################################################
+function main() {
+  local target_dir_flag='false'
+  local scratch_dir_flag='false'
+
+  # process script input
+  while getopts ":d:s:h" flag ; do
+    case "${flag}" in
+      d)
+        readonly TARGET_DIRECTORY="$(realpath "${OPTARG}")/"
+        target_dir_flag='true'
+        ;;
+      s)
+        readonly SCRATCH_DIRECTORY="$(realpath "${OPTARG}")/"
+        readonly WORKSPACE_DIRECTORY="${SCRATCH_DIRECTORY}fuzzitall/"
+        scratch_dir_flag='true'
+        ;;
+      h)
+        usage
+        exit 1
+        ;;
+      :)  die "Missing option argument for -${OPTARG}" ;;
+      *)  die "Unimplemented option" ;;
+    esac
+  done
+
+  validate_arguments "${target_dir_flag}" "${scratch_dir_flag}"
+
+  printf "\n*** Deploying FuzzItAll command line tool ***\n\n"
+
+  initialize_deployment
+  build_fuzzers
+  deploy_tool
+  export_env_vars
+  cleanup
+
+  printf "\n*** Deployment completed ***\n\n"
+
+  exit 0
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+main "$@"

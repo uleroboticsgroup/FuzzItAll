@@ -1,0 +1,100 @@
+{#
+
+templates/layouts/content/table.html.jinja - Template to display a table
+                                             as the main page element.
+
+* This template defines the following blocks:
+
+    - table_headers [REQUIRED]:
+        Columns forming the table heading.
+    - table_row [REQUIRED]:
+        Cells forming a row within the table. This block uses the variable
+        "item" to define the cells content.
+    - base_scripts [OPTIONAL]:
+        Same as in template 'layouts/base.tmpl'.
+
+* In addition, the template uses the following variables:
+
+    - page_title (str) [REQUIRED]:
+        Page title.
+    - description (str) [OPTIONAL]:
+        Page short description (can be used as subtitle).
+    - prev_endpoint (dict) [REQUIRED]:
+        Endpoint prior to the arrival to this page. The dictionary must
+        contain two entries:
+            1. endpoint (str) - Previous endpoint.
+            2. label (str) - Label associated to the previous endpoint.
+    - actions (list) [OPTIONAL]:
+        List of endpoints containing the possible main actions to be performed
+        on this page. Each item in this list is a dictionary with the
+        following two entries:
+            1. endpoint (str) - Main action endpoint.
+            2. label (str) - Label associated to the main action endpoint.
+    - endpoint (str) [REQUIRED]:
+        Endpoint pointing to this page.
+    - items (list) [REQUIRED]:
+        List of items to fill the table with
+    - page_meta (dict) [REQUIRED]:
+        Page meta data. The dictionary must contain the following entries:
+        1. page (int) - Current page within the results pagination.
+        2. per_page (int) - Number of items to display per page.
+        3. total_pages (int) - Total number of pages that comprise the
+        pagination results.
+        4. total_items (int) - Total number of items.
+        5. has_next (bool) - Whether the next results page exists.
+        6. has_prev (bool) - Whether the previous results page exists.
+        7. params (dict) - All other the HTTP request arguments other
+        than those related to paging.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    <!-- Section header -->
+    {{ fia_base.render_section_header(page_title, description, prev_endpoint, actions) }}
+    <!-- Feedback panel -->
+    {{ fia_base.render_feedback_panel(get_flashed_messages()) }}
+    <!-- Table -->
+    {% if items -%}
+        <figure>
+            <table role="grid">
+                <thead>
+                    <tr>{% block table_headers required -%}{%- endblock %}</tr>
+                </thead>
+                <tbody>
+                    {% for item in items -%}
+                        <tr>{% block table_row scoped required %}{% endblock %}</tr>
+                    {%- endfor %}
+                </tbody>
+                <tfoot><em>{{ page_meta['total_items'] }} results</em></tfoot>
+            </table>
+            {% if page_meta['total_pages'] > 1 -%}
+            <!-- Pagination bar -->
+            <div class="grid">
+                {% if page_meta['has_prev'] -%}
+                    <a href="{{ url_for(endpoint, page=page_meta['page']-1, per_page=page_meta['per_page'], **page_meta['params']) }}">&lt;</a>
+                {% endif -%}
+                {% for p in range(page_meta['total_pages']) -%}
+                    {% if loop.index != page_meta['page'] -%}
+                        <a href="{{ url_for(endpoint, page=loop.index, per_page=page_meta['per_page'], **page_meta['params']) }}">{{ loop.index }}</a>
+                    {%- else -%}
+                        {{ loop.index }}
+                    {%- endif %}
+                {%- endfor %}
+                {% if page_meta['has_next'] -%}
+                    <a href="{{ url_for(endpoint, page=page_meta['page']+1, per_page=page_meta['per_page'], **page_meta['params']) }}">&gt;</a>
+                {%- endif %}
+            </div>
+            {%- endif %}
+        </figure>
+    {%- else -%}
+        <p>No records exist in the database.</p>
+    {%- endif %}
+</section>
+{% endblock %}

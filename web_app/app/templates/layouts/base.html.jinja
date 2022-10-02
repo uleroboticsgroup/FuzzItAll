@@ -1,0 +1,84 @@
+{#
+
+templates/layouts/base.html.jinja - Base template to be used as a layout
+                                    for any FuzzItAll page.
+
+* This template defines the following blocks:
+
+    - base_main [REQUIRED]:
+        Main content of the page.
+    - base_scripts [OPTIONAL]:
+        Scripts to run on the page.
+
+* In addition, the template uses the following variables:
+
+    - page_title (str) [OPTIONAL]:
+        Page title.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% import "macros/base.html.jinja" as fia_base %}
+{% import "macros/gdpr.html.jinja" as fia_gdpr with context %}
+
+{# ---------------------------------------------------------------- #}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1,width=device-width">
+    <!-- Title -->
+    <title>FuzzItAll{% if page_title %} - {{ page_title }}{% endif -%}</title>
+    <!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/normalize.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/pico.classless.min.css') }}">
+</head>
+<body>
+    <!-- Navigation menu -->
+    <nav>
+        <!-- left side -->
+        <ul>
+            <li><a href="{{ url_for('main.index') }}"><strong>FuzzItAll</strong></a></li>
+        </ul>
+        <!-- right side -->
+        <ul>
+            {% if current_user.is_authenticated -%}
+                <li>
+                    <details role="list">
+                        <summary aria-haspopup="listbox">Menu</summary>
+                        <aside>
+                            <ul role="listbox">
+                                <li><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                                <li><a href="{{ url_for('main.help') }}">Help</a></li>
+                                <li><a href="{{ url_for('authentication.logout') }}">Logout</a></li>
+                            </ul>
+                        </aside>
+                    </details>
+                </li>
+            {% else -%}
+                <li><a href="{{ url_for('authentication.login') }}">Sign In</a></li>
+            {%- endif %}
+        </ul>
+    </nav>
+    <!-- Page content -->
+    <main>
+        {% block base_main required -%}{% endblock -%}
+    </main>
+    <!-- Footer -->
+    <footer>
+        <small>
+            &copy; 2021-2022, <a href="https://seguridad.unileon.es">Security Robotics Group</a>
+            •
+            FuzzItAll (beta version)
+            •
+            This application is licensed under
+            <a href="https://choosealicense.com/licenses/mit/">MIT License</a>.
+        </small>
+    </footer>
+    {% block base_scripts -%}{% endblock -%}
+    {{ fia_gdpr.render_gdpr_consent() }}
+</body>
+</html>

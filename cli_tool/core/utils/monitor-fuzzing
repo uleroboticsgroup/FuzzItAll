@@ -1,0 +1,114 @@
+#!/bin/bash
+######################################################################
+#
+# monitor-fuzzing - Script for showing the results of the execution of
+#                   fuzzing tasks on a project.
+#
+######################################################################
+
+# import helper library
+source "${FIA_ROOT}scripts/helpers.sh"
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Path to the directory containing the project with the fuzz target.
+PROJECT_DIRECTORY=""
+
+# Name of the fuzzing engine used on the project.
+FUZZER_NAME=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show script usage.
+# Arguments:
+#   None
+# Outputs:
+#   Writes a message on how to use this script to stdout.
+######################################################################
+function usage() {
+  printf "\nFuzzItAll command line tool (fuzzing monitor)\n"
+  printf -- "---------------------------------------------\n\n"
+  printf "Usage: %s [-p project_directory] [-f fuzzer_name]\n" "$0"
+  printf "\nThe following options are required:\n\n"
+  printf "  -p\tPath to the directory containing the project with the"
+  printf " fuzz target.\n"
+  printf "  -f\tName of the fuzzing engine used on the project.\n"
+  printf "\nThe following option is not required:\n\n"
+  printf "  -h\tPrint usage.\n"
+  printf "\n"
+}
+
+######################################################################
+# Check that the script arguments are valid and terminate the script execution
+# if they are not.
+# Globals:
+#   PROJECT_DIRECTORY
+#   FUZZER_NAME
+# Globals (from FIA.config):
+#   FIA_FUZZERS_DIRECTORY
+# Arguments:
+#   Flag indicating whether the project directory argument (-p) has been set.
+#   Flag indicating whether the fuzzer name argument (-f) has been set.
+######################################################################
+function validate_arguments() {
+  local project_dir_flag=$1
+  local fuzzer_name_flag=$2
+
+  # validate the project directory argument
+  if [[ "${project_dir_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -p is required"
+  elif [[ ! -d "${PROJECT_DIRECTORY}" ]]; then
+    fuzzitall::die "Directory '${PROJECT_DIRECTORY}' does not exist"
+  fi
+
+  # validate the fuzzer name argument
+  if [[ "${fuzzer_name_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -f is required"
+  elif [[ ! -f "${FIA_FUZZERS_DIRECTORY}${FUZZER_NAME}/fuzzer" ]]; then
+    fuzzitall::die "Fuzzer '${FUZZER_NAME}' not supported"
+  fi
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+project_dir_flag='false'
+fuzzer_name_flag='false'
+
+# process script input
+while getopts ":p:f:j:eh" flag; do
+  case "${flag}" in
+    p)
+      readonly PROJECT_DIRECTORY="$(realpath "${OPTARG}")/"
+      project_dir_flag='true'
+      ;;
+    f)
+      readonly FUZZER_NAME="${OPTARG}"
+      fuzzer_name_flag='true'
+      ;;
+    h)
+      usage
+      exit 1
+      ;;
+    :)  fuzzitall::die "Missing option argument for -${OPTARG}" ;;
+    *)  fuzzitall::die "Unimplemented option" ;;
+  esac
+done
+
+validate_arguments "${project_dir_flag}" "${fuzzer_name_flag}"
+
+# load fuzzing engine
+fuzzer="$(fuzzitall::get_fuzzer "${FUZZER_NAME}")"
+source "${fuzzer}"
+
+# monitor the results using the previously loaded engine
+fuzzitall::monitor_results "${PROJECT_DIRECTORY}" \
+  fuzzitall::die "Failed to show results for the project"
+
+exit 0

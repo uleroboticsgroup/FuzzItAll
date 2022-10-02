@@ -1,0 +1,24 @@
+{#
+
+main/templates/help.html - Help page.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define template variables #}
+{% set page_title = 'Help' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    {% set prev_endpoint = {'endpoint': 'main.index', 'label': 'Back'} %}
+    {{ fia_base.render_section_header(page_title, None, prev_endpoint) }}
+    <p>The content of this page is still under construction.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,231 @@
+#!/bin/bash
+######################################################################
+#
+# build-fuzzer - Script to build AFL++.
+#
+######################################################################
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Fuzzer name.
+readonly FUZZER_NAME="AFL++"
+
+# Fuzzer version to build.
+readonly FUZZER_VERSION="4.00c"
+
+# Path to the temporary directory where to build the fuzzer.
+readonly BUILD_DIRECTORY="$(pwd)/build/"
+
+# Path to the target directory where to deploy the fuzzer.
+TARGET_DIRECTORY=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show the script usage.
+# Globals:
+#   FUZZER_NAME
+# Arguments:
+#   None
+# Outputs:
+#   Writes a message on how to use this script to stdout.
+######################################################################
+function usage() {
+  printf "\n%s fuzzer for FuzzItAll command line tool (builder)\n" "${FUZZER_NAME}"
+  printf -- "------------------------------------------------------\n\n"
+  printf "Usage: %s [-d target_directory]\n" "$0"
+  printf "\nThe following option is required:\n\n"
+  printf "  -d\tPath to the target directory where to deploy the fuzzer"
+  printf " binaries.\n"
+  printf "\nThe following option is not required:\n\n"
+  printf "  -h\tPrint usage.\n"
+  printf "\n"
+}
+
+######################################################################
+# Remove the temporary build directory.
+# Globals:
+#   BUILD_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function cleanup() {
+  if [[ -d "${BUILD_DIRECTORY}" ]]; then
+    rm -rf "${BUILD_DIRECTORY}"
+  fi
+}
+
+######################################################################
+# Print an error.
+# Arguments:
+#   Message describing the cause of the error.
+# Outputs:
+#   Writes an error message to stderr.
+######################################################################
+function error() {
+  printf "[$(date +'%Y-%m-%d %T')]: %s\n" "$*" 1>&2
+}
+
+######################################################################
+# Display a message, remove temporary files and stop the script execution.
+# Arguments:
+#   Message describing the cause of the stop.
+# Outputs:
+#   Writes the cause of stop to stderr.
+# Returns:
+#   Exit code 1 (operation not permitted).
+######################################################################
+function die() {
+  local last_exit_status=$?
+
+  error "FATAL ERROR - $* (status ${last_exit_status})\n"
+  cleanup
+
+  exit 1
+}
+
+######################################################################
+# Check that the script arguments are valid and terminate the script execution
+# if they are not.
+# Globals:
+#   TARGET_DIRECTORY
+# Arguments:
+#   Flag indicating whether the target directory argument (-d) has been set.
+######################################################################
+function validate_arguments() {
+  local target_dir_flag=$1
+
+  # validate the target directory argument
+  if [[ "${target_dir_flag}" == 'false' ]]; then
+    die "Argument -d is required"
+  elif [[ ! -d "$(dirname "${TARGET_DIRECTORY}")" ]]; then
+    die "Directory '${TARGET_DIRECTORY}' does not exist"
+  fi
+}
+
+######################################################################
+# Prepare the temporary directory to build the fuzzer.
+# Globals:
+#   BUILD_DIRECTORY
+#   FUZZER_VERSION
+#   FUZZER_NAME
+# Arguments:
+#   None
+######################################################################
+function configure_build() {
+  printf "* Configuring build...\n"
+
+  # create build directory
+  mkdir -p "${BUILD_DIRECTORY}" || die "Failed to create build directory"
+
+  # check that the source code exists
+  local fuzzer_src="./src/${FUZZER_VERSION}.zip"
+  if [[ ! -f "${fuzzer_src}" ]]; then
+    die "${FUZZER_NAME} source code not found"
+  fi
+
+  # unzip fuzzer sources
+  unzip -qq -o "${fuzzer_src}" -d "${BUILD_DIRECTORY}" || \
+    die "Failed to unzip ${FUZZER_NAME} source code"
+
+  local src_og_dir="${BUILD_DIRECTORY}AFLplusplus-${FUZZER_VERSION}/"
+
+  # ignore 'first level' directory from the previous extraction
+  mv "${src_og_dir}"* "${BUILD_DIRECTORY}"
+  rm -r "${src_og_dir}"
+}
+
+######################################################################
+# Compile the fuzzer source code.
+# Globals:
+#   BUILD_DIRECTORY
+#   FUZZER_NAME
+# Arguments:
+#   None
+######################################################################
+function build_fuzzer() {
+  printf "* Building...\n"
+
+  # build the fuzzer
+  (cd "${BUILD_DIRECTORY}" \
+    && export LLVM_CONFIG=llvm-config \
+      && make source-only -j$(nproc))
+  if (( $? != 0 )); then
+    die "Failed to build ${FUZZER_NAME}. Please check the logs"
+  fi
+}
+
+######################################################################
+# Deploy the fuzzer to the target directory.
+# Globals:
+#   BUILD_DIRECTORY
+#   TARGET_DIRECTORY
+# Arguments:
+#   None
+######################################################################
+function deploy_fuzzer() {
+  printf "* Deploying...\n"
+
+  # create the target directory for this fuzzer
+  mkdir -p "${TARGET_DIRECTORY}" || \
+    die "Failed to create target directory"
+
+  # deploy fuzzer
+  (cd "${BUILD_DIRECTORY}" \
+    && make install DESTDIR="${TARGET_DIRECTORY}" PREFIX="")
+
+  # copy fuzzer script
+  cp ./fuzzer "${TARGET_DIRECTORY}"
+}
+
+######################################################################
+# Main script function.
+# Globals:
+#   TARGET_DIRECTORY
+#   FUZZER_NAME
+#   FUZZER_VERSION
+# Arguments:
+#   Path to the target directory where to deploy the fuzzer.
+######################################################################
+function main() {
+  local target_dir_flag='false'
+
+  # process script input
+  while getopts ":d:h" flag; do
+    case "${flag}" in
+      d)
+        readonly TARGET_DIRECTORY="$(realpath "${OPTARG}")/${FUZZER_NAME}/"
+        target_dir_flag='true'
+        ;;
+      h)
+        usage
+        exit 1
+        ;;
+      :)  die "Missing option argument for -${OPTARG}" ;;
+      *)  die "Unimplemented option" ;;
+    esac
+  done
+
+  validate_arguments "${target_dir_flag}"
+
+  printf "\n*** Building %s %s ***\n\n" "${FUZZER_NAME}" "${FUZZER_VERSION}"
+
+  configure_build
+  build_fuzzer
+  deploy_fuzzer
+  cleanup
+
+  printf "\n*** Build completed ***\n\n"
+
+  exit 0
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+main "$@"

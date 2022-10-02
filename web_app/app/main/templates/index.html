@@ -1,0 +1,35 @@
+{#
+
+main/templates/index.html - Index page.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    <hgroup>
+        <h1>Fuzzing made easy</h1>
+        <h2>FuzzItAll is a service to ease the working process of grey-box
+            fuzzing using the capabilities of a High-Performance
+            Computing System</h2>
+    </hgroup>
+    <p>
+        <a href="{{ url_for('authentication.login') }}">Start fuzzing now!</a>
+    </p>
+</section>
+<section>
+    <hgroup>
+        <h1>Request a demo!</h1>
+        <h2>FuzzItAll is currently in beta. You need an account before
+            accessing the service.</h2>
+    </hgroup>
+    <p>
+        <a href="{{ url_for('registration.sign_up') }}">Sign up now!</a>
+    </p>
+</section>
+{% endblock %}

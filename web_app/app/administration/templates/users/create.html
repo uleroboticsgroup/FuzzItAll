@@ -1,0 +1,29 @@
+{#
+
+administration/templates/users/create.html - Form to create a user in
+the service.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Create User' %}
+{% set description = 'Register a user in the service' %}
+{% set prev_endpoint = {'endpoint': 'administration.browse_users', 'label': 'Cancel'} %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<!-- Name -->
+{{ fia_form.render_textfield(form.username, placeholder="Username") }}
+<!-- Password -->
+{{ fia_form.render_textfield(form.password, placeholder="Password") }}
+{{ fia_form.render_textfield(form.confirm, placeholder="Confirm password") }}
+<!-- Is admin? -->
+{{ fia_form.render_booleanfield(form.admin, role="switch")}}
+{% endblock %}

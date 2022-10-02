@@ -1,0 +1,33 @@
+{#
+
+administration/templates/hpcs/create.html - Form to create a HPC system
+in the service.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Create HPC System' %}
+{% set description = 'Setup a HPC system in the service' %}
+{% set prev_endpoint = {'endpoint': 'administration.browse_hpcs', 'label': 'Cancel'} %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<!-- Identification -->
+{{ fia_form.render_textfield(form.name, placeholder="Name") }}
+<!-- Connection details -->
+<div>
+    {{ fia_form.render_textfield(form.host, placeholder="127.0.0.1") }}
+    {{ fia_form.render_textfield(form.port, placeholder="22") }}
+</div>
+{{ fia_form.render_textfield(form.user, placeholder="User") }}
+<!-- Authentication -->
+{{ fia_form.render_textfield(form.password, placeholder="Password or Passphrase") }}
+{{ fia_form.render_filefield(form.ssh_key, disabled="disabled") }}
+{% endblock %}

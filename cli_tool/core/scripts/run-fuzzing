@@ -1,0 +1,134 @@
+#!/bin/bash
+######################################################################
+#
+# run-fuzzing - Script to run the fuzzing tasks on a project.
+#
+######################################################################
+
+# import helper library
+source "${FIA_ROOT}scripts/helpers.sh"
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Path to the directory containing the project on which fuzzing is to
+# be applied.
+PROJECT_DIRECTORY=""
+
+# Name of the fuzzer to be run.
+FUZZER_NAME=""
+
+# Slurm array task identifier assigned to the execution of this script.
+SLURM_ARRAY_TID=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show script usage.
+# Arguments:
+#   None
+# Outputs:
+#   Writes to stdout a message on how to use this script.
+######################################################################
+function usage() {
+  printf "\nFuzzing runner for FuzzItAll command line tool\n"
+  printf -- "------------------------------------------------\n\n"
+  printf "Usage: %s [-p project_directory] [-f fuzzer_name]" "$0"
+  printf " [-t slurm_array_task_identifier]\n"
+  printf "\nThe following options are required:\n\n"
+  printf "  -p\tPath to the directory containing the project on which"
+  printf " fuzzing is to be applied.\n"
+  printf "  -f\tName of the fuzzer to be run.\n"
+  printf "  -t\tSlurm array task identifier assigned to the execution"
+  printf " of this script.\n"
+  printf "\nThe following option is not required:\n\n"
+  printf "  -h\tPrint usage.\n"
+  printf "\n"
+}
+
+######################################################################
+# Check for the existence of the arguments required to run the script
+# and stop it if any of them are missing. Please note that this function
+# merely check the existence of the arguments and does not validate their
+# values.
+# Arguments:
+#   Flag indicating whether the project directory argument (-p) has been set.
+#   Flag indicating whether the fuzzer argument (-f) has been set.
+#   Flag indicating whether the Slurm array task identifier argument (-t)
+#   has been set.
+######################################################################
+function check_required_arguments() {
+  local project_dir_flag=$1
+  local fuzzer_name_flag=$2
+  local slurm_array_tid_flag=$3
+
+  # check the project directory argument
+  if [[ "${project_dir_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -p is required"
+  fi
+
+  # check the fuzzer argument
+  if [[ "${fuzzer_name_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -f is required"
+  fi
+
+  # check the slurm array task identifier
+  if [[ "${slurm_array_tid_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -t is required"
+  fi
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+project_dir_flag='false'
+fuzzer_name_flag='false'
+slurm_array_tid_flag='false'
+
+# process script input
+while getopts ":p:f:t:eh" flag; do
+  case "${flag}" in
+    p)
+      readonly PROJECT_DIRECTORY="$(realpath "${OPTARG}")/"
+      project_dir_flag='true'
+      ;;
+    f)
+      readonly FUZZER_NAME="${OPTARG}"
+      fuzzer_name_flag='true'
+      ;;
+    t)
+      readonly SLURM_ARRAY_TID="${OPTARG}"
+      slurm_array_tid_flag='true'
+      ;;
+    h)
+      usage
+      exit 1
+      ;;
+    :)  fuzzitall::die "Missing option argument for -${OPTARG}" ;;
+    *)  fuzzitall::die "Unimplemented option" ;;
+  esac
+done
+
+check_required_arguments \
+  "${project_dir_flag}" "${fuzzer_name_flag}" "${slurm_array_tid_flag}"
+
+# load fuzzing engine
+fuzzer="$(fuzzitall::get_fuzzer "${FUZZER_NAME}")"
+source "${fuzzer}"
+
+# run the appropriate fuzzing task using the previously loaded engine
+if (( ${SLURM_ARRAY_TID} > 0 )); then
+  fuzzitall::start_parallel_fuzzing \
+    "${PROJECT_DIRECTORY}" "${SLURM_ARRAY_TID}" \
+      || fuzzitall::die "Failed to start the " \
+                        "${SLURM_ARRAY_TID} parallel fuzzing task"
+else
+  fuzzitall::start_fuzzing "${PROJECT_DIRECTORY}" \
+    || fuzzitall::die "Failed to start the main fuzzing task"
+fi
+
+exit 0

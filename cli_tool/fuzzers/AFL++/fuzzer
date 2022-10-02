@@ -1,0 +1,202 @@
+######################################################################
+#
+# fuzzer - Script file to use AFL++ inside FuzzItAll.
+#
+######################################################################
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Fuzzer root directory
+readonly FUZZER_ROOT="${FIA_ROOT}fuzzers/AFL++/"
+
+# Compiler wrapper (companion tool)
+readonly FUZZER_CC="${FUZZER_ROOT}bin/afl-cc"
+readonly FUZZER_CXX="${FUZZER_ROOT}bin/afl-cc"
+
+# Fuzzer binary
+readonly FUZZER_BIN="${FUZZER_ROOT}bin/afl-fuzz"
+
+# Fuzzer monitor
+readonly FUZZER_MONITOR="${FUZZER_ROOT}bin/afl-whatsup"
+
+# Fuzzer flags
+readonly FUZZER_BUILD_FLAGS="AFL_PATH=${FUZZER_ROOT}"
+readonly FUZZER_FUZZ_FLAGS="AFL_PATH=${FUZZER_ROOT} AFL_NO_AFFINITY=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 AFL_SKIP_CPUFREQ=1"
+
+# Path to the project source code directory.
+PROJECT_SRC_DIRECTORY=""
+
+# Path to the fuzzing output directory of the project.
+PROJECT_OUTPUT_DIRECTORY=""
+
+# Path to the project configuration file.
+PROJECT_CONFIG_FILE=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Initializes the global variables relative to the project on which fuzzing
+# is to be applied.
+# Globals:
+#   PROJECT_SRC_DIRECTORY
+#   PROJECT_OUTPUT_DIRECTORY
+#   PROJECT_CONFIG_FILE
+# Globals (from FIA.config):
+#   FIA_PROJECT_OUTPUT_DIR
+#   FIA_PROJECT_CFG_FILE
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+######################################################################
+function fuzzitall::set_project_vars() {
+  local project_directory=$1
+
+  PROJECT_SRC_DIRECTORY="${project_directory}src/"
+  PROJECT_OUTPUT_DIRECTORY="${project_directory}${FIA_PROJECT_OUTPUT_DIR}/"
+  PROJECT_CONFIG_FILE="${PROJECT_SRC_DIRECTORY}${FIA_PROJECT_CFG_FILE}"
+}
+
+######################################################################
+# Build the fuzz target and inject it with the instrumentation.
+# Globals:
+#   PROJECT_CONFIG_FILE
+#   PROJECT_SRC_DIRECTORY
+#   FUZZER_CC
+#   FUZZER_CXX
+# Globals (from fia_project.conf):
+#   FIA_BUILD_CMD
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+######################################################################
+function fuzzitall::inject_instrumentation() {
+  local project_directory=$1
+
+  fuzzitall::set_project_vars "${project_directory}"
+
+  # import project fuzzing configuration
+  source "${PROJECT_CONFIG_FILE}"
+
+  # trim the build commands string and transform it into an array
+  local IFS=$'\n'
+  declare -a build_cmds
+  build_cmds=("$(sed 's/^ *//; s/ *$//; s/ *; */;/g' <<< "${FIA_BUILD_CMD}" \
+    | tr ';' '\n')")
+  # execute the commands sequentially
+  for build_cmd in "${build_cmds[@]}"; do
+    # always move to source directory, export env vars and run the command
+    (cd "${PROJECT_SRC_DIRECTORY}" \
+      && export "${FUZZER_BUILD_FLAGS}" CC="${FUZZER_CC}" CXX="${FUZZER_CXX}" \
+        && eval "${build_cmd}")
+  done
+}
+
+######################################################################
+# Start or resume the main fuzzing task.
+# Globals:
+#   PROJECT_CONFIG_FILE
+#   PROJECT_SRC_DIRECTORY
+#   PROJECT_OUTPUT_DIRECTORY
+#   FUZZER_FUZZ_FLAGS
+#   FUZZER_BIN
+# Globals (from fia_project.conf):
+#   FIA_FUZZ_TARGET
+#   FIA_TESTCASE_DIR
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+######################################################################
+function fuzzitall::start_fuzzing() {
+  local project_directory=$1
+
+  fuzzitall::set_project_vars "${project_directory}"
+
+  # import project fuzzing configuration
+  source "${PROJECT_CONFIG_FILE}"
+
+  local run_cmd="${PROJECT_SRC_DIRECTORY}${FIA_FUZZ_TARGET}"
+  local fuzzer_name="fuzzer0"
+
+  if [[ ! -d "${PROJECT_OUTPUT_DIRECTORY}${fuzzer_name}/" ]]; then
+    # start the main fuzzing task
+    local testcase_directory="${PROJECT_SRC_DIRECTORY}${FIA_TESTCASE_DIR}"
+    (export "${FUZZER_FUZZ_FLAGS}" \
+      && ${FUZZER_BIN} -i "${testcase_directory}" \
+                       -o "${PROJECT_OUTPUT_DIRECTORY}" \
+                       -M "${fuzzer_name}" \
+                       ${run_cmd})
+  else
+    # resume the main fuzzing task
+    (export "${FUZZER_FUZZ_FLAGS}" \
+      && ${FUZZER_BIN} -i - \
+                       -o "${PROJECT_OUTPUT_DIRECTORY}" \
+                       -M "${fuzzer_name}" \
+                       ${run_cmd})
+  fi
+}
+
+######################################################################
+# Start or resume a parallel fuzzing task.
+# Globals:
+#   PROJECT_CONFIG_FILE
+#   PROJECT_SRC_DIRECTORY
+#   PROJECT_OUTPUT_DIRECTORY
+#   FUZZER_FUZZ_FLAGS
+#   FUZZER_BIN
+# Globals (from fia_project.conf):
+#   FIA_FUZZ_TARGET
+#   FIA_TESTCASE_DIR
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+#   Parallel fuzzer identifier.
+######################################################################
+function fuzzitall::start_parallel_fuzzing() {
+  local project_directory=$1
+  local fuzzer_number=$2
+
+  fuzzitall::set_project_vars "${project_directory}"
+
+  # import project fuzzing configuration
+  source "${PROJECT_CONFIG_FILE}"
+
+  local run_cmd="${PROJECT_SRC_DIRECTORY}${FIA_FUZZ_TARGET}"
+  local fuzzer_name="fuzzer${fuzzer_number}"
+
+  if [[ ! -d "${PROJECT_OUTPUT_DIRECTORY}${fuzzer_name}/" ]]; then
+    # start the parallel fuzzing task
+    local testcase_directory="${PROJECT_SRC_DIRECTORY}${FIA_TESTCASE_DIR}"
+    (export "${FUZZER_FUZZ_FLAGS}" \
+      && ${FUZZER_BIN} -i "${testcase_directory}" \
+                       -o "${PROJECT_OUTPUT_DIRECTORY}" \
+                       -S "${fuzzer_name}" \
+                       ${run_cmd})
+  else
+    # resume the parallel fuzzing task
+    (export "${FUZZER_FUZZ_FLAGS}" \
+      && ${FUZZER_BIN} -i - \
+                       -o "${PROJECT_OUTPUT_DIRECTORY}" \
+                       -S "${fuzzer_name}" \
+                       ${run_cmd})
+  fi
+}
+
+######################################################################
+# Show the results of the execution of fuzzing tasks on a project.
+# Globals:
+#   PROJECT_OUTPUT_DIRECTORY
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+######################################################################
+function fuzzitall::monitor_results() {
+  local project_directory=$1
+
+  fuzzitall::set_project_vars "${project_directory}"
+
+  ${FUZZER_MONITOR} -s -d "${PROJECT_OUTPUT_DIRECTORY}"
+}

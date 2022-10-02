@@ -1,0 +1,30 @@
+{#
+
+registration/templates/signup.html - Form to register new users to the
+web service.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define template variables #}
+{% set page_title = 'Sign Up' %}
+{% set description = 'Register to get access to the service' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<article>
+    <p>We are sorry, but this feature is under construction.</p>
+</article>
+<!-- Name -->
+{{ fia_form.render_textfield(form.name, placeholder="Name") }}
+<!-- Email -->
+{{ fia_form.render_textfield(form.email, placeholder="your@email.com") }}
+{{ fia_form.render_booleanfield(form.agree) }}
+<p><small>We only use your name and email to process your request for access to the service.</small></p>
+{% endblock %}

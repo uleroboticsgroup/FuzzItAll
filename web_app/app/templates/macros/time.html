@@ -1,0 +1,7 @@
+{% macro format_datetime(datetime) %}
+{% if datetime %}
+{{ datetime.strftime('%d/%m/%Y, %H:%M:%S') }}
+{% else %}
+N/A
+{% endif %}
+{% endmacro %}

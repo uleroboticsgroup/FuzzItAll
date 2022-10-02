@@ -1,0 +1,52 @@
+{#
+
+templates/layouts/content/form.html.jinja - Template to display a form
+                                            as the main page element.
+
+* This template defines the following blocks:
+
+    - form_fields [REQUIRED]:
+        Fields that compose the form.
+    - base_scripts [OPTIONAL]:
+        Same as in template 'templates/layouts/base.tmpl'.
+
+* In addition, the template uses the following variables:
+
+    - page_title (str) [OPTIONAL]:
+        Page title.
+    - description (str) [OPTIONAL]:
+        Page short description (can be used as subtitle).
+    - prev_endpoint (dict) [OPTIONAL]:
+        Endpoint prior to the arrival to this page. The dictionary must
+        contain two entries:
+            1. endpoint (str) - Previous endpoint.
+            2. label (str) - Label associated to the previous endpoint.
+    - onsubmit_cb (str) [OPTIONAL]:
+        Callback function to be executed after receiving the onsubmit
+        event.
+    - form (FlaskForm) [REQUIRED]:
+        Form to display.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+{% import "macros/forms.html.jinja" as fia_form %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    <!-- Section header -->
+    {{ fia_base.render_section_header(page_title, description, prev_endpoint) }}
+    <!-- Feedback panel -->
+    {{ fia_base.render_feedback_panel(get_flashed_messages()) }}
+    <!-- Form -->
+    <form {% if onsubmit_cb %}onsubmit="{{ onsubmit_cb }}" {% endif %} method="POST">
+        {{ form.hidden_tag() }}
+        {% block form_fields required -%}{%- endblock %}
+        {{ form.submit }}
+    </form>
+</section>
+{% endblock %}

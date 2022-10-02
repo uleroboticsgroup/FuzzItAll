@@ -1,0 +1,45 @@
+{#
+
+main/templates/dashboard.html - Dashboard page.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define template variables #}
+{% set page_title = 'Dashboard' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    {% set description = 'Welcome ' ~ current_user.username ~ '!' -%}
+    {{ fia_base.render_section_header(page_title, description) }}
+    <div class="grid">
+        {% if current_user.admin -%}
+        <article>
+            <header>Administration</header>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('administration.browse_users') }}">Users</a></li>
+                    <li><a href="{{ url_for('administration.browse_hpcs') }}">HPC Systems</a></li>
+                    <li><a href="{{ url_for('administration.browse_system') }}">System</a></li>
+                </ul>
+            </nav>
+        </article>
+        {% endif -%}
+        <article>
+            <header>Main Menu</header>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('fuzzing.browse_projects') }}">Fuzzing Projects</a></li>
+                </ul>
+            </nav>
+        </article>
+    </div>
+</section>
+{% endblock %}

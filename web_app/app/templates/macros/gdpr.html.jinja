@@ -1,0 +1,27 @@
+{#
+
+templates/macros/gdpr.html.jinja - Definition of macros related to GDPR.
+
+#}
+
+{# -------------------------------------------------------------------
+
+Renders the GDPR banner for the consent of user's data usage.
+
+------------------------------------------------------------------ #}
+{% macro render_gdpr_consent() -%}
+{% if not cookies_check() -%}
+<article id="gdpr-consent-div" style="position:fixed; bottom: 0; width: 100%">
+    <p>This page only uses its own cookies for technical purposes, does not
+        collect or transfer personal data of users without their knowledge.</p>
+    <button id="gdpr-btn">Understood</button>
+</article>
+<script>
+    var fn = function () {
+        document.cookie = "cookie_consent=true";
+        document.getElementById('gdpr-consent-div').hidden = true;
+    };
+    document.getElementById('gdpr-btn').onclick = fn;
+</script>
+{%- endif %}
+{%- endmacro %}

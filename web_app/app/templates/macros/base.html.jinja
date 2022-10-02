@@ -1,0 +1,117 @@
+{#
+
+templates/macros/base.html.jinja - Definition of macros for rendering
+                                   base HTML elements.
+
+* This template defines the following macros:
+
+    - render_section_header(str, str, dict, list[dict])
+    - render_feedback_panel(list)
+    - render_sortable_link(str, str, str, dict)
+
+#}
+
+{# -------------------------------------------------------------------
+
+Renders the header of a section.
+
+Parameters
+==========
+
+    * title (str) [REQUIRED]:
+        Section title.
+    * subtitle (str) [OPTIONAL]:
+        Section subtitle.
+    * prev_endpoint (dict) [OPTIONAL]:
+        Endpoint prior to the arrival to this page. The dictionary must
+        contain two entries:
+            1. endpoint (str) - Previous endpoint.
+            2. label (str) - Label associated to the previous endpoint.
+    * actions (list[dict]) [OPTIONAL]:
+        List of endpoints containing the possible main actions to be performed
+        on this page. Each item in this list is a dictionary with the
+        following two entries:
+            1. endpoint (str) - Main action endpoint.
+            2. label (str) - Label associated to the main action endpoint.
+
+ ------------------------------------------------------------------ #}
+{% macro render_section_header(title, subtitle, prev_endpoint, actions) -%}
+<div>
+    {% if prev_endpoint -%}
+    <p>
+        <a href="{{ url_for(prev_endpoint['endpoint']) }}">{{ prev_endpoint['label'] }}</a>
+    </p>
+    {% endif -%}
+    <nav>
+        {% if subtitle -%}
+            <hgroup>
+                <h1>{{ title }}</h1>
+                <h2>{{ subtitle }}</h2>
+            </hgroup>
+        {%- else -%}
+            <h1>{{ title }}</h1>
+        {% endif -%}
+        {% if actions %}
+        <ul>
+            {% for action in actions -%}
+                <li><a href="{{ url_for(action['endpoint']) }}" role="button">{{ action['label'] }}</a></li>
+            {% endfor -%}
+        </ul>
+        {%- endif %}
+    </nav>
+</div>
+{%- endmacro %}
+
+{# -------------------------------------------------------------------
+
+Renders a panel to show feedback messages.
+
+Parameters
+==========
+
+    * messages (list) [REQUIRED]:
+        List of messages to display.
+
+ ------------------------------------------------------------------ #}
+{% macro render_feedback_panel(messages) -%}
+<article id="feedback" style="display:{{ 'block' if messages|length else 'none' }};">
+    <ul>
+        {% for message in messages -%}
+            <li>{{ message }}</li>
+        {% endfor -%}
+    </ul>
+</article>
+{%- endmacro %}
+
+{# -------------------------------------------------------------------
+
+Renders a link to sort the results by a given column.
+
+Parameters
+==========
+
+    * endpoint (str) [REQUIRED]:
+        Endpoint pointing to the page to sort the results.
+    * label (str) [REQUIRED]:
+        Label associated to the column.
+    * column (str) [REQUIRED]:
+        Column used to sort by.
+    * page_meta (dict) [REQUIRED]:
+        Page meta data.
+
+ ------------------------------------------------------------------ #}
+{% macro render_sortable_link(endpoint, label, column, page_meta) -%}
+{% set params = page_meta.copy() -%}
+{% set page = params.pop('page') -%}
+{% set per_page = params.pop('per_page') -%}
+{% set other_params = dict(params.pop('params')) -%}
+{% set col = other_params.pop('col') -%}
+{% set dir = other_params.pop('dir') -%}
+{% if col != column -%}
+    {% set col = column -%}
+    {% set dir = 'desc' -%}
+{% else %}
+    {% set dir = 'desc' if dir == 'asc' else 'asc' %}
+{% endif -%}
+<a href="{{ url_for(endpoint, page=page, per_page=per_page, col=col, dir=dir, **other_params) }}">{{ label|e }}</a>
+{%- endmacro %}

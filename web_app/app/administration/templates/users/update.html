@@ -1,0 +1,24 @@
+{#
+
+administration/templates/users/update.html - Form to update user data.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Update User' %}
+{% set description = 'Update user data' %}
+{% set prev_endpoint = {'endpoint': 'administration.browse_users', 'label': 'Cancel'} %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<!-- Password -->
+{{ fia_form.render_textfield(form.new_password, placeholder="Password") }}
+{{ fia_form.render_textfield(form.confirm, placeholder="Confirm password") }}
+{% endblock %}

@@ -1,0 +1,76 @@
+{#
+
+administration/templates/users/browse.html - Page to create and manage
+individual users.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/table.html.jinja' %}
+
+{% import "macros/time.html" as time_macros %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'Users' %}
+{% set description='Create and manage individual users' %}
+{% set prev_endpoint = {'endpoint': 'main.dashboard', 'label': 'Back'} %}
+{% set actions = [{'endpoint': 'administration.create_user', 'label': 'Create User'}] %}
+{% set endpoint = 'administration.browse_users' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_headers %}
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Username', 'username', page_meta) }}</th>
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Is Admin?', 'admin', page_meta) }}</th>
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Last Access', 'last_login', page_meta) }}</th>
+<th scope="col">Edit</th>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_row %}
+<th scope="row">{{ item.username }}</th>
+<td>{{ 'Yes' if item.admin else 'No' }}</td>
+<td>{{ time_macros.format_datetime(item.last_login) }}</td>
+<td>
+    <details dir="rtl">
+        <summary aria-haspopup="listbox" role="link">⚙</summary>
+        <aside>
+            <nav>
+                <ul role="listbox">
+                    <li><a href="{{ url_for('administration.update_user', user_id=item.id) }}">Change Password</a>
+                    </li>
+                    {% if current_user.id != item.id %}
+                    <li><a href="" onclick=deleteUser(event,"{{ url_for('administration.delete_user',
+                            user_id=item.id)|safe }}")>Delete</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </aside>
+    </details>
+</td>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_scripts %}
+<script>
+
+    function deleteUser(event, delete_url) {
+        event.preventDefault();
+
+        const delete_msg = 'This will remove the user from the system. ' +
+            'Please note that this action cannot be undone.\n\n' +
+            'Do you wish to continue?';
+        if (confirm(delete_msg) == true) {
+            // dispatch request
+            fetch(delete_url, { 'method': 'DELETE', 'redirect': 'follow' })
+                .then(response => { window.location = response.url; });
+        }
+    };
+
+</script>
+{% endblock %}

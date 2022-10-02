@@ -1,0 +1,157 @@
+#!/bin/bash
+######################################################################
+#
+# setup-submission-scripts - Script for configuring all submission scripts
+#                            within a given directory from the parameters
+#                            of a descriptor file.
+#
+######################################################################
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Tag indicating the beginning of the job description block.
+readonly BEGIN_JOB_DESCRIPTION_TAG="^### BEGIN_JOB_DESCRIPTION ###$"
+
+# Tag indicating the ending of the job description block.
+readonly END_JOB_DESCRIPTION_TAG="^### END_JOB_DESCRIPTION ###$"
+
+# Path to the directory containing the set of submission scripts to be
+# configured.
+ROOT_DIRECTORY=""
+
+# Slurm job descriptor file which parameters are to be copied.
+DESCRIPTOR_FILE=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show script usage.
+# Arguments:
+#   None
+# Outputs:
+#   Writes a message on how to use this script to stdout.
+######################################################################
+function usage() {
+  printf "\nFuzzItAll Slurm job description configurator\n"
+  printf -- "--------------------------------------------\n\n"
+  printf "Usage: %s [-d root_directory] [-f descriptor_file]\n" "$0"
+  printf "\nThe following options are required:\n\n"
+  printf "  -d\tPath to the directory containing the set of submission"
+  printf " scripts (.slurm) to be configured.\n"
+  printf "  -f\tSlurm job descriptor file which parameters are to be copied.\n"
+  printf "\nThe following option is not required:\n\n"
+  printf "  -h\tPrint usage.\n"
+  printf "\n"
+}
+
+######################################################################
+# Print an error.
+# Arguments:
+#   Message describing the cause of the error.
+# Outputs:
+#   Writes an error message to stderr.
+######################################################################
+function error() {
+  printf "[$(date +'%Y-%m-%d %T')]: $*\n" 1>&2
+}
+
+######################################################################
+# Display a message and stop the script execution.
+# Arguments:
+#   Message describing the cause of the stop.
+# Outputs:
+#   Writes the cause of stop to stderr.
+# Returns:
+#   Exit code 1 (operation not permitted).
+######################################################################
+function die() {
+  local last_exit_status=$?
+
+  error "FATAL ERROR - $* (status ${last_exit_status})\n"
+
+  exit 1
+}
+
+######################################################################
+# Check that the script arguments are valid and terminate the script execution
+# if they are not.
+# Globals:
+#   ROOT_DIRECTORY
+#   DESCRIPTOR_FILE
+# Arguments:
+#   Flag indicating whether the root directory argument (-d) has been set.
+#   Flag indicating whether the descriptor file argument (-f) has been set.
+######################################################################
+function validate_arguments() {
+  local root_dir_flag=$1
+  local descriptor_file_flag=$2
+
+  # validate the root directory argument
+  if [[ "${root_dir_flag}" == 'false' ]]; then
+    die "Argument -d is required"
+  elif [[ ! -d "${ROOT_DIRECTORY}" ]]; then
+    die "Directory '${ROOT_DIRECTORY}' does not exist"
+  fi
+
+  # validate the descriptor file argument
+  if [[ "${descriptor_file_flag}" == 'false' ]]; then
+    die "Argument -f is required"
+  elif [[ ! -f "${DESCRIPTOR_FILE}" ]]; then
+    die "Descriptor '${DESCRIPTOR_FILE}' does not exist"
+  fi
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+root_dir_flag='false'
+descriptor_file_flag='false'
+
+# process script input
+while getopts ":d:f:h" flag ; do
+  case "${flag}" in
+    d)
+      readonly ROOT_DIRECTORY="$(realpath "${OPTARG}")/"
+      root_dir_flag='true'
+      ;;
+    f)
+      readonly DESCRIPTOR_FILE="$(realpath "${OPTARG}")"
+      descriptor_file_flag='true'
+      ;;
+    h)
+      usage
+      exit 1
+      ;;
+    :)  die "Missing option argument for -${OPTARG}" ;;
+    *)  die "Unimplemented option" ;;
+  esac
+done
+
+validate_arguments "${root_dir_flag}" "${descriptor_file_flag}"
+
+# get all the submission scripts from the given directory
+submission_scripts="$(find ${ROOT_DIRECTORY} -type f -name '*.slurm')"
+
+# load the parameters of the descriptor file in each of the submission scripts
+for script in ${submission_scripts}; do
+  sed -i -e "/${BEGIN_JOB_DESCRIPTION_TAG}/,/${END_JOB_DESCRIPTION_TAG}/{
+                /${BEGIN_JOB_DESCRIPTION_TAG}/{
+                  p
+                  r ${DESCRIPTOR_FILE}
+                }
+                /${END_JOB_DESCRIPTION_TAG}/{
+                  p
+                }
+                d
+              }" "${script}"
+  if (( $? != 0 )); then
+    die "Failed to load parameters to file '${script}'"
+  fi
+done
+
+exit 0

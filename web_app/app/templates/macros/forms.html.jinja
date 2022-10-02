@@ -1,0 +1,128 @@
+{#
+
+templates/macros/forms.html.jinja - Definition of macros for rendering
+                                    HTML form elements.
+
+* This template defines the following macros:
+
+    - render_textfield(wtforms.StringField|wtforms.PasswordField)
+    - render_radiobutton(wtforms.RadioField)
+    - render_selectfield(wtforms.SelectField)
+    - render_booleanfield(wtforms.BooleanField)
+    - render_filefield(wtforms.FileField)
+
+#}
+
+{# -------------------------------------------------------------------
+
+Renders a text field.
+
+Parameters
+==========
+
+    * field (wtforms.StringField|wtforms.PasswordField) [REQUIRED]:
+        Text field to render as HTML.
+
+ ------------------------------------------------------------------ #}
+{% macro render_textfield(field) -%}
+<div id="{{ field.id }}-div">
+    {{ field.label }}
+    {% if field.errors -%}
+        {% set _ = kwargs.update({"aria-invalid": "true"}) %}
+        {{ field(**kwargs)|safe }}
+        <ul>
+            {% for error in field.errors -%}
+                <li><small>{{ error|e }}</small></li>
+            {% endfor -%}
+        </ul>
+        {%- else -%}
+        {{ field(**kwargs)|safe }}
+    {%- endif %}
+</div>
+{%- endmacro %}
+
+{# -------------------------------------------------------------------
+
+Renders a radio button.
+
+Parameters
+==========
+
+    * field (wtforms.RadioField) [REQUIRED]:
+        Radio button to render as HTML.
+
+ ------------------------------------------------------------------ #}
+{% macro render_radiobutton(field) %}
+<div id="{{ field.id }}-div">
+    {% set onchange_cb = kwargs.pop('onchange') -%}
+    <fieldset onchange="{{ onchange_cb }}">
+        <legend>{{ field.label }}</legend>
+        {% for option in field -%}
+            {{ option(**kwargs)|safe }}{{ option.label.text }}
+        {%- endfor %}
+    </fieldset>
+</div>
+{% endmacro %}
+
+{# -------------------------------------------------------------------
+
+Renders a select field.
+
+Parameters
+==========
+
+    * field (wtforms.SelectField) [REQUIRED]:
+        Select field to render as HTML.
+
+ ------------------------------------------------------------------ #}
+{% macro render_selectfield(field) -%}
+<div id="{{ field.id }}-div">
+    {% if field.choices|length > 1 -%}
+        {{ field.label }}{{ field(**kwargs)|safe }}
+    {%- else -%}
+        <em id="{{ field.id }}" style="{{ kwargs['style'] }};">No options available.</em>
+    {%- endif %}
+    {% if field.errors -%}
+        {% for error in field.errors -%}
+            <small>{{ error|e }}</small>
+        {%- endfor %}
+    {%- endif %}
+</div>
+{%- endmacro %}
+
+{# -------------------------------------------------------------------
+
+Renders a boolean field.
+
+Parameters
+==========
+
+    * field (wtforms.BooleanField) [REQUIRED]:
+        Boolean field to render as HTML.
+
+ ------------------------------------------------------------------ #}
+{% macro render_booleanfield(field) -%}
+<div id="{{ field.id }}-div">
+    <fieldset>
+        {{ field(**kwargs)|safe }}{{ field.label }}
+    </fieldset>
+</div>
+{%- endmacro %}
+
+{# ---------------------------------------------------------------- #}
+{% macro render_filefield(field) %}
+<div id="{{ field.id }}-div">
+    {{ field.label }}
+    {% if field.errors %}
+    {% set _ = kwargs.update({"aria-invalid": "true"}) %}
+    {{ field(**kwargs)|safe }}
+    <ul>
+        {% for error in field.errors %}
+        <li><small>{{ error|e }}</small></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    {{ field(**kwargs)|safe }}
+    {% endif %}
+</div>
+{% endmacro %}

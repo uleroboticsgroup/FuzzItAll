@@ -1,0 +1,35 @@
+{#
+
+main/templates/error.html - Error page.
+
+* This template uses the following variables:
+
+- error(str) [REQUIRED]:
+Error type.
+- message (str) [REQUIRED]:
+Error message to be displayed.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define template variables #}
+{% set page_title = error %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    {{ fia_base.render_section_header(error) }}
+    <p>{{ message }}</p>
+    <nav>
+        <ul>
+            <li><a href="{{ url_for('main.index') }}" role="button">Go back home</a></li>
+        </ul>
+    </nav>
+</section>
+{% endblock %}

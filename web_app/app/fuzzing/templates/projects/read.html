@@ -1,0 +1,202 @@
+{#
+
+templates/projects/read.html - Fuzzing project details.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/base.html.jinja' %}
+{% import "macros/time.html" as macros %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = title %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_main %}
+<section>
+    {% set prev_endpoint = {'endpoint': 'fuzzing.browse_projects', 'label': 'Back'} %}
+    {{ fia_base.render_section_header(title, subtitle, prev_endpoint) }}
+    <article id="project">
+        <header>Project overview</header>
+        <table>
+            <thead></thead>
+            <tbody>
+                <tr>
+                    <td>Created on</td>
+                    <td>{{ macros.format_datetime(project.created) }}</td>
+                </tr>
+                <tr>
+                    <td>State</td>
+                    <td>{{ project.state.name }}</td>
+                </tr>
+                <tr>
+                    <td>Last update</td>
+                    <td>{{ macros.format_datetime(project.last_update) }}</td>
+                </tr>
+                <tr>
+                    <td>Repository/Fuzz target</td>
+                    <td><a href="{{ project.url }}" target="_blank">{{ project.url }}</a></td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>
+            <!-- Project actions -->
+            <nav id="project-nav">
+                <ul></ul>
+                <ul>
+                    <li><button id="delete-btn" onclick="deleteProject(event)">Delete</button></li>
+                </ul>
+            </nav>
+        </footer>
+    </article>
+    <article id="fuzzing">
+        <header>Fuzzing tasks</header>
+        <table>
+            <thead></thead>
+            <tbody>
+                <tr>
+                    <td>Wall time</td>
+                    <td>{{ project.jobs.wall_time }}</td>
+                </tr>
+                <tr>
+                    <td>Number of parallel tasks</td>
+                    <td>{{ project.jobs.num_tasks }}</td>
+                </tr>
+                <tr>
+                    <td>Slurm job state</td>
+                    <td>{{ project.jobs.state.name }}</td>
+                </tr>
+                <tr>
+                    <td>Completion</td>
+                    {% if project.state.name != 'PENDING' %}
+                    {% set fuzz_percentage = 100.0 * project.jobs.elapsed_time.total_seconds() /
+                    project.jobs.wall_time.total_seconds() %}
+                    {% else %}
+                    {% set fuzz_percentage = '' %}
+                    {% endif %}
+                    <td><progress id="fuzz-progress" max="100" value="{{ '%0.2f' % fuzz_percentage|float }}"></progress>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        {% if project.state.name == 'PENDING' or project.state.name == 'RUNNING' %}
+        <footer>
+            <!-- Fuzzing job actions -->
+            <nav id="fuzzing-nav">
+                <ul></ul>
+                <ul>
+                    <li><button id="refresh-btn" onclick="refreshFuzzingJob(event)">Refresh</button></li>
+                    <li><button id="cancel-btn" onclick="cancelFuzzingJob(event)">Cancel</button></li>
+
+                </ul>
+            </nav>
+        </footer>
+        {% endif %}
+    </article>
+    {% if project.state.name != 'PENDING' and project.state.name != 'RUNNING' %}
+    <article id="results">
+        <header>Results</header>
+        <details open="">
+            <summary>Fuzzing output</summary>
+            <p>
+                {% for line in stats %}
+                {{ line }}<br />
+                {% endfor %}
+            </p>
+        </details>
+        <details>
+            <summary>Error log</summary>
+            <p aria-busy="true">
+            </p>
+        </details>
+        <footer>
+            <!-- Fuzzing results actions -->
+            <nav id="results-nav">
+                <ul></ul>
+                <ul>
+                    <li><button id="download-btn" onclick="downloadResults(event)">Download</button></li>
+                </ul>
+            </nav>
+        </footer>
+    </article>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block base_scripts %}
+<script>
+
+    function deleteProject(event) {
+        event.preventDefault();
+
+        const delete_msg = 'This will cancel any pending or running jobs ' +
+            'and remove the project from the service. Are you sure you want ' +
+            'to delete the current project?';
+        if (confirm(delete_msg) == true) {
+            // clear any feedback text
+            let feedback_div = document.getElementById('feedback');
+            feedback_div.style.display = 'none';
+            feedback_div.getElementsByTagName('ul')[0].innerHTML = '';
+
+            // lock button
+            document.getElementById('delete-btn').setAttribute('aria-busy', 'true');
+
+            // dispatch request
+            const delete_url = '{{ url_for("fuzzing.delete_project", project_id=project.id)|safe }}';
+            fetch(delete_url, { 'method': 'DELETE', 'redirect': 'follow' })
+                .then(response => { window.location = response.url; });
+        }
+
+    };
+
+    function refreshFuzzingJob(event) {
+        event.preventDefault();
+
+        // lock button
+        document.getElementById('refresh-btn').setAttribute('aria-busy', 'true');
+
+        // dispatch request
+        const refresh_url = '{{ url_for("fuzzing.refresh_project_tasks", project_id=project.id)|safe }}';
+        fetch(refresh_url, { 'method': 'PUT', 'redirect': 'follow' })
+            .then(response => { window.location = response.url; });
+    };
+
+    function cancelFuzzingJob(event) {
+        event.preventDefault();
+
+        // lock button
+        document.getElementById('cancel-btn').setAttribute('aria-busy', 'true');
+
+        // dispatch request
+        const cancel_url = '{{ url_for("fuzzing.cancel_project_tasks", project_id=project.id)|safe }}';
+        let response = fetch(cancel_url, { 'method': 'PUT', 'redirect': 'follow' })
+            .then(response => { window.location = response.url; });
+    };
+
+    function downloadResults(event) {
+        event.preventDefault();
+
+        // lock button
+        let download_btn = document.getElementById('download-btn');
+        download_btn.setAttribute('aria-busy', 'true');
+
+        // dispatch request
+        const download_url = '{{ url_for("fuzzing.download_project", project_id = project.id)|safe }}';
+        fetch(download_url, { 'method': 'GET' })
+            .then(response => {
+                // unlock button and return file
+                download_btn.setAttribute('aria-busy', 'false');
+                return response.blob();
+            })
+            .then(blob => {
+                var file = window.URL.createObjectURL(blob);
+                window.location.assign(file);
+            });
+    }
+
+</script>
+{% endblock %}

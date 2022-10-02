@@ -1,0 +1,296 @@
+#!/bin/bash
+######################################################################
+#
+# fuzzitall - FuzzItAll command line tool.
+#
+######################################################################
+
+# import helper library
+source "${FIA_ROOT}scripts/helpers.sh"
+
+
+# GLOBAL VARIABLES
+#---------------------------------------------------------------------
+
+# Path to the directory where to store the logs.
+readonly LOG_DIR="${FIA_ROOT}log/"
+
+# Slurm job log file name.
+readonly SLURM_LOG_FILE_NAME="${LOG_DIR}%x_%A"
+
+# Path to the directory containing the project with the fuzz target.
+PROJECT_DIRECTORY=""
+
+# Name of the project with the fuzz target.
+PROJECT_NAME=""
+
+# Name of the fuzzing engine to be run.
+FUZZER_NAME=""
+
+# Number of parallel tasks to be used during the fuzzing process.
+NUM_PARALLEL_TASKS=0
+
+# Duration of the fuzzing process.
+WALL_TIME=""
+
+
+# FUNCTIONS
+#---------------------------------------------------------------------
+
+######################################################################
+# Show script usage.
+# Arguments:
+#   None
+# Outputs:
+#   Writes to stdout a message on how to use this script.
+######################################################################
+function usage() {
+  printf "\nFuzzItAll command line tool\n"
+  printf -- "---------------------------\n\n"
+  printf "Usage: %s [-p project_directory] [-f fuzzer_name]" "$0"
+  printf " [-n number_parallel_tasks] [-t wall_time]\n"
+  printf "\nThe following options are required:\n\n"
+  printf "  -p\tPath to the directory containing the project with the"
+  printf " fuzz target.\n"
+  printf "  -f\tName of the fuzzing engine to be run.\n"
+  printf "\nThe following options are not required:\n\n"
+  printf "  -n\tNumber of parallel tasks to be used during the fuzzing"
+  printf " process.\n"
+  printf "  -t\tDuration of the fuzzing process, specified in the DD-HH:MM"
+  printf " format.\n"
+  printf "  -h\tPrint usage.\n"
+  printf "  -v\tPrint FuzzItAll version.\n"
+  printf "\n"
+}
+
+######################################################################
+# Check that the script arguments are valid and stop its execution if
+# they are not.
+# Globals:
+#   PROJECT_DIRECTORY
+#   FUZZER_NAME
+#   NUM_PARALLEL_TASKS
+#   WALL_TIME
+# Globals (from FIA.config):
+#   FIA_WORKSPACE
+#   FIA_FUZZERS_DIRECTORY
+#   FIA_MAX_PARALLEL_TASKS
+# Arguments:
+#   Flag indicating whether the project directory argument (-p) has been set.
+#   Flag indicating whether the fuzzing engine argument (-f) has been set.
+#   Flag indicating whether the number of parallel tasks argument (-n)
+#   has been set.
+#   Flag indicating whether the wall time argument (-t) has been set.
+######################################################################
+function validate_arguments() {
+  local project_dir_flag=$1
+  local fuzzer_name_flag=$2
+  local parallel_tasks_flag=$3
+  local wall_time_flag=$4
+
+  # validate the project directory
+  if [[ "${project_dir_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -p is required"
+  elif [[ ! -d "${PROJECT_DIRECTORY}" ]]; then
+    fuzzitall::die "Directory '${PROJECT_DIRECTORY}' does not exist"
+  elif [[ ${PROJECT_DIRECTORY} != ${FIA_WORKSPACE}* ]]; then
+    fuzzitall::die "Directory '${PROJECT_DIRECTORY}' does not belong" \
+      "to the FuzzItAll workspace"
+  fi
+
+  # validate the fuzzing engine name
+  if [[ "${fuzzer_name_flag}" == 'false' ]]; then
+    fuzzitall::die "Argument -f is required"
+  elif [[ ! -f "${FIA_FUZZERS_DIRECTORY}${FUZZER_NAME}/fuzzer" ]]; then
+    fuzzitall::die "Fuzzer '${FUZZER_NAME}' not supported"
+  fi
+
+  # validate the number of parallel tasks
+  if [[ "${parallel_tasks_flag}" == 'true' ]]; then
+    if (( ${NUM_PARALLEL_TASKS} < 0 || \
+        ${NUM_PARALLEL_TASKS} > ${FIA_MAX_PARALLEL_TASKS} )); then
+      fuzzitall::die "Incorrect number of parallel tasks: must be greater" \
+        "than 0 and less or equal than ${FIA_MAX_PARALLEL_TASKS}"
+    fi
+  fi
+
+  # validate the wall time
+  if [[ "${wall_time_flag}" == 'true' ]]; then
+    if [[ ! "${WALL_TIME}" =~ ^([0-9]+-)?([0-1]?([0-9]|2[0-3]):)?[0-5][0-9]$ ]]; then
+      fuzzitall::die "Incorrect time format. It should be DD-HH:MM"
+    fi
+  fi
+}
+
+######################################################################
+# Inject instrumentation to build the fuzz target.
+# Globals:
+#   PROJECT_NAME
+#   SLURM_LOG_FILE_NAME
+#   PROJECT_DIRECTORY
+#   FUZZER_NAME
+# Globals (from FIA.config):
+#   FIA_ROOT
+# Arguments:
+#   None
+# Returns:
+#   Instrumentation slurm job identifier.
+######################################################################
+function inject_instrumentation() {
+  local injection_script="${FIA_ROOT}scripts/inject-instrumentation.slurm"
+  local job_name="FuzzItAll-${PROJECT_NAME}-Instrumentation"
+
+  # run the submission script
+  local job_output
+  job_output="$(sbatch --job-name=${job_name} --chdir="${FIA_ROOT}scripts/" \
+                      --output="${SLURM_LOG_FILE_NAME}".out \
+                      --error="${SLURM_LOG_FILE_NAME}".err \
+                      ${injection_script} \
+                      "${PROJECT_DIRECTORY}" "${FUZZER_NAME}")"
+  if (( $? != 0 )); then
+    fuzzitall::die "Failed to request instrumentation injection" \
+      "into the project"
+  fi
+
+  # extract its job identifier
+  local job_id
+  job_id="$(fuzzitall::get_slurm_job_id "${job_output}")"
+
+  # and return it
+  echo "${job_id}"
+}
+
+######################################################################
+# Perform fuzzing tasks on the project.
+# Globals:
+#   PROJECT_NAME
+#   NUM_PARALLEL_TASKS
+#   SLURM_LOG_FILE_NAME
+#   PROJECT_DIRECTORY
+#   WALL_TIME
+#   FUZZER_NAME
+# Globals (from FIA.config):
+#   FIA_ROOT
+#   FIA_MAX_PARALLEL_TASKS
+# Arguments:
+#   Instrumentation job identifier.
+# Returns:
+#   Identifier of the Slurm array job submitted to perform fuzzing
+#   tasks on the project.
+######################################################################
+function run_fuzzing() {
+  local instrumentation_jid=$1
+
+  local fuzzing_script="${FIA_ROOT}scripts/run-fuzzing.slurm"
+  local job_name="FuzzItAll-${PROJECT_NAME}-Fuzzing"
+
+  # set appropriate range of index values for the slurm job array
+  local task_range="0"
+  if (( ${NUM_PARALLEL_TASKS} > 0 )); then
+    task_range="0-${NUM_PARALLEL_TASKS}%${FIA_MAX_PARALLEL_TASKS}"
+  fi
+
+  # set wall time if necessary
+  local wall_time_arg=""
+  if [[ ! -z "${WALL_TIME}" ]]; then
+    wall_time_arg="--time=${WALL_TIME}"
+  fi
+
+  # run the submission script
+  local job_output
+  job_output="$(sbatch --job-name=${job_name} \
+                       --dependency=afterok:${instrumentation_jid} \
+                       --array=${task_range}\
+                       --chdir="${FIA_ROOT}scripts/" \
+                       --output="${SLURM_LOG_FILE_NAME}".out \
+                       --error="${SLURM_LOG_FILE_NAME}".err \
+                       --signal="B:INT@30" \
+                       "${wall_time_arg}" \
+                       ${fuzzing_script} \
+                       "${PROJECT_DIRECTORY}" "${FUZZER_NAME}")"
+  if (( $? != 0 )); then
+    fuzzitall::die "Failed to request fuzzing tasks into the project"
+  fi
+
+  # extract its job identifier
+  local job_id
+  job_id="$(fuzzitall::get_slurm_job_id "${job_output}")"
+
+  # and return it
+  echo "${job_id}"
+}
+
+######################################################################
+# Main script function.
+# Globals:
+#   PROJECT_DIRECTORY
+#   PROJECT_NAME
+#   FUZZER_NAME
+#   NUM_PARALLEL_TASKS
+#   WALL_TIME
+# Arguments:
+#   Path to the directory containing the project on which fuzzing is to
+#   be applied.
+#   Name of the fuzzing engine to be run.
+#   Number of parallel tasks to be used during the fuzzing process.
+# Outputs:
+#   Writes to stdout the identifier of the Slurm array job that executes
+#   the project's fuzzing tasks.
+######################################################################
+function main() {
+  local project_dir_flag='false'
+  local fuzzer_name_flag='false'
+  local parallel_tasks_flag='false'
+  local wall_time_flag='false'
+
+  # process script input
+  while getopts ":p:f:n:t:hv" flag; do
+    case "${flag}" in
+      p)
+        readonly PROJECT_DIRECTORY="$(realpath "${OPTARG}")/"
+        readonly PROJECT_NAME="$(basename "${PROJECT_DIRECTORY}")"
+        project_dir_flag='true'
+        ;;
+      f)
+        readonly FUZZER_NAME="${OPTARG}"
+        fuzzer_name_flag='true'
+        ;;
+      n)
+        readonly NUM_PARALLEL_TASKS="${OPTARG}"
+        parallel_tasks_flag='true'
+        ;;
+      t)
+        readonly WALL_TIME="${OPTARG}"
+        wall_time_flag='true'
+        ;;
+      h)
+        usage
+        exit 1
+        ;;
+      v)
+        fuzzitall::version
+        exit 1
+        ;;
+      :)  fuzzitall::die "Missing option argument for -${OPTARG}" ;;
+      *)  fuzzitall::die "Unimplemented option" ;;
+    esac
+  done
+
+  validate_arguments \
+    "${project_dir_flag}" "${fuzzer_name_flag}" "${parallel_tasks_flag}" \
+    "${wall_time_flag}"
+
+  # perform the fuzzing process on the project
+  local instrumentation_jid
+  instrumentation_jid="$(inject_instrumentation)"
+
+  run_fuzzing "${instrumentation_jid}"
+
+  exit 0
+}
+
+
+# MAIN SCRIPT
+#---------------------------------------------------------------------
+
+main "$@"

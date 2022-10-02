@@ -1,0 +1,26 @@
+{#
+
+authentication/templates/login.html - Form to access the web service.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/form.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define template variables #}
+{% set page_title = 'Sign In' %}
+{% set description = 'Enter your credentials' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block form_fields %}
+<!-- Username -->
+{{ fia_form.render_textfield(form.username, placeholder="Username") }}
+<!-- Password -->
+{{ fia_form.render_textfield(form.password, placeholder="Password") }}
+<!-- Remember Me -->
+{{ fia_form.render_booleanfield(form.remember, role="switch") }}
+{% endblock %}

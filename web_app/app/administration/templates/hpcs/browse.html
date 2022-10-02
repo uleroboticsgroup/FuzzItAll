@@ -1,0 +1,69 @@
+{#
+
+administration/templates/hpcs/browse.html - Page to create and manage
+individual HPC systems.
+
+#}
+
+{# ---------------------------------------------------------------- #}
+
+{% extends 'layouts/content/table.html.jinja' %}
+
+{# ---------------------------------------------------------------- #}
+
+{# define variables required by the template #}
+{% set page_title = 'HPC Systems' %}
+{% set description='Create and manage individual HPC systems' %}
+{% set prev_endpoint = {'endpoint': 'main.dashboard', 'label': 'Back'} %}
+{% set actions = [{'endpoint': 'administration.create_hpcs', 'label': 'Create HPC System'}] %}
+{% set endpoint = 'administration.browse_hpcs' %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_headers %}
+<th scope="col">{{ fia_base.render_sortable_link(endpoint, 'Name', 'name', page_meta) }}</th>
+<th scope="col">Connection Details</th>
+<th scope="col">Edit</th>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block table_row %}
+<th scope="row">{{ item.name }}</th>
+<td>{{ item.user }}@{{ item.host }}:{{ item.port }}</td>
+<td>
+    <details dir="rtl">
+        <summary aria-haspopup="listbox" role="link">⚙</summary>
+        <aside>
+            <nav>
+                <ul role="listbox">
+                    <li><a href="" onclick=deleteHPCSystem(event,"{{ url_for('administration.delete_hpcs',
+                            hpcs_id=item.id)|safe }}")>Delete</a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+    </details>
+</td>
+{% endblock %}
+
+{# ---------------------------------------------------------------- #}
+
+{% block base_scripts %}
+<script>
+
+    function deleteHPCSystem(event, delete_url) {
+        event.preventDefault();
+
+        const delete_msg = 'This will remove the HPC system from the system. ' +
+            'Please note that this action cannot be undone.\n\n' +
+            'Do you wish to continue?';
+        if (confirm(delete_msg) == true) {
+            // dispatch request
+            fetch(delete_url, { 'method': 'DELETE', 'redirect': 'follow' })
+                .then(response => { window.location = response.url; });
+        }
+    };
+
+</script>
+{% endblock %}
